@@ -1,0 +1,26 @@
+{
+  "sources": {
+    "guangyun": {
+      "name": "CJKVI 校正宋本廣韻",
+      "version": "9b6e0a88bcccdfa36c6b96327a88fc900867276c",
+      "project_url": "https://github.com/cjkvi/cjkvi-dict",
+      "source_url": "https://raw.githubusercontent.com/cjkvi/cjkvi-dict/9b6e0a88bcccdfa36c6b96327a88fc900867276c/sbgy.xml",
+      "file": "data/raw/sbgy.xml",
+      "sha256": "4bbe2b0faa9c36c2dfcfde00b595f09b88109178ca4318fe36588498046be23c",
+      "license": "GPL-2.0"
+    },
+    "unihan_variants": {
+      "name": "Unicode Unihan Variants",
+      "version": "17.0.0",
+      "project_url": "https://www.unicode.org/reports/tr38/",
+      "source_url": "https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip",
+      "archive_member": "Unihan_Variants.txt",
+      "file": "data/raw/Unihan_Variants.txt",
+      "archive_sha256": "f7a48b2b545acfaa77b2d607ae28747404ce02baefee16396c5d2d7a8ef34b5e",
+      "sha256": "3f23cd71872633f3350875d25bd388e83b60fa71807634c9a600ec26f38a68ab",
+      "license": "Unicode-3.0",
+      "license_url": "https://www.unicode.org/license.txt"
+    }
+  }
+}
+

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project
+        run: pip install -e '.[dev]'
+
+      - name: Fetch pinned data
+        run: python scripts/fetch_data.py
+
+      - name: Build and validate database
+        run: |
+          python scripts/import_sbgy.py
+          python scripts/validate_data.py
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+
