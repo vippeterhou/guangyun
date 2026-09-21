@@ -604,7 +604,7 @@ h1 {
   padding: 16px;
   border: 1px solid var(--cp-border);
   border-radius: 16px;
-  background: var(--cp-surface-soft);
+  background: var(--cp-surface);
 }
 
 .network-search label,
