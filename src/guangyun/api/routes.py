@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from guangyun.database import get_connection
 from guangyun.repository import (
+    character_aliases,
     entries_for_character,
     entry_by_id,
     fanqie_network,
@@ -33,6 +34,14 @@ def valid_character_query(value: str) -> bool:
     return not unicodedata.category(value[0]).startswith(("C", "Z"))
 
 
+def validate_character_query(value: str) -> None:
+    if not valid_character_query(value):
+        raise HTTPException(
+            status_code=422,
+            detail="char must contain one character, optionally followed by a variation selector",
+        )
+
+
 @router.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     with get_connection() as connection:
@@ -53,11 +62,7 @@ def source() -> dict:
 def character_entries(
     char: Annotated[str, Query(min_length=1, max_length=2, description="One character")],
 ) -> dict:
-    if not valid_character_query(char):
-        raise HTTPException(
-            status_code=422,
-            detail="char must contain one character, optionally followed by a variation selector",
-        )
+    validate_character_query(char)
     with get_connection() as connection:
         entries, aliases = entries_for_character(connection, char)
         metadata = source_metadata(connection)
@@ -82,6 +87,28 @@ def character_entries(
                 "license": variant_metadata["license"],
             },
         },
+    }
+
+
+@router.get("/character-candidates", tags=["dictionary"])
+def character_candidates(
+    char: Annotated[str, Query(min_length=1, max_length=2, description="One character")],
+) -> dict:
+    validate_character_query(char)
+    with get_connection() as connection:
+        aliases = character_aliases(connection, char)
+    return {
+        "query": char,
+        "candidates": [
+            {"character": char, "relation": "exact"},
+            *[
+                {
+                    "character": item["target_character"],
+                    "relation": item["relation"],
+                }
+                for item in aliases
+            ],
+        ],
     }
 
 

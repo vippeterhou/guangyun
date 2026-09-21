@@ -41,6 +41,21 @@ def test_one_to_many_simplified_lookup(client) -> None:
     assert {"發", "髮"}.issubset({entry["character"] for entry in payload["entries"]})
 
 
+def test_character_candidates(client) -> None:
+    single = client.get("/api/v1/character-candidates", params={"char": "东"}).json()
+    assert single["candidates"] == [
+        {"character": "东", "relation": "exact"},
+        {"character": "東", "relation": "simplified-to-traditional"},
+    ]
+
+    multiple = client.get("/api/v1/character-candidates", params={"char": "发"}).json()
+    assert multiple["candidates"] == [
+        {"character": "发", "relation": "exact"},
+        {"character": "發", "relation": "simplified-to-traditional"},
+        {"character": "髮", "relation": "simplified-to-traditional"},
+    ]
+
+
 def test_multiple_readings(client) -> None:
     response = client.get("/api/v1/characters", params={"char": "行"})
     assert response.status_code == 200
@@ -126,6 +141,8 @@ def test_overview_page(client) -> None:
     assert "overview.css" in response.text
     assert "overview.js" in response.text
     assert 'id="network-search-form"' in response.text
+    assert 'id="network-search-status"' in response.text
+    assert 'id="network-search-candidates"' in response.text
     assert 'id="network-frequency"' in response.text
     assert 'id="network-fit"' in response.text
     assert 'id="network-focus-controls"' in response.text

@@ -40,6 +40,7 @@ Open:
 |---|---|
 | `GET /api/v1/characters?char=東` | Look up all entries for one character |
 | `GET /api/v1/characters?char=东` | Resolve simplified aliases and return traditional entries |
+| `GET /api/v1/character-candidates?char=东` | Resolve exact and traditional lookup candidates |
 | `GET /api/v1/entries/{id}` | Retrieve one dictionary entry |
 | `GET /api/v1/small-rhymes/{id}` | Retrieve a small rhyme and its entries |
 | `GET /api/v1/volumes` | List the five volumes |

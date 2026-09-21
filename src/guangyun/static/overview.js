@@ -5,6 +5,8 @@ const tooltip = document.querySelector("#network-tooltip");
 const networkSummary = document.querySelector("#network-summary");
 const networkSearchForm = document.querySelector("#network-search-form");
 const networkSearchInput = document.querySelector("#network-search-input");
+const networkSearchStatus = document.querySelector("#network-search-status");
+const networkSearchCandidates = document.querySelector("#network-search-candidates");
 const networkFrequency = document.querySelector("#network-frequency");
 const networkFrequencyValue = document.querySelector("#network-frequency-value");
 const networkFocusControls = document.querySelector("#network-focus-controls");
@@ -26,6 +28,7 @@ const state = {
   networkTransform: { x: 0, y: 0, scale: 1 },
   networkDrag: null,
   networkDragMoved: false,
+  networkSearchQuery: null,
 };
 
 function escapeHtml(value) {
@@ -827,6 +830,7 @@ async function loadNetwork(mode) {
   state.networkFocusNode = null;
   state.networkFocusDepth = 1;
   state.networkMinFrequency = 1;
+  clearNetworkSearchFeedback();
   networkFrequency.value = "1";
   networkFrequencyValue.textContent = "1";
   document.querySelectorAll("[data-network-mode]").forEach((button) => {
@@ -841,6 +845,27 @@ async function loadNetwork(mode) {
     button.disabled = false;
   });
   resizeCanvas();
+}
+
+function clearNetworkSearchFeedback() {
+  state.networkSearchQuery = null;
+  networkSearchStatus.hidden = true;
+  networkSearchStatus.textContent = "";
+  networkSearchCandidates.hidden = true;
+  networkSearchCandidates.replaceChildren();
+}
+
+function focusNetworkSearchResult(node, query) {
+  networkSearchCandidates.hidden = true;
+  networkSearchCandidates.replaceChildren();
+  if (node.id !== query) {
+    networkSearchStatus.textContent = `已將「${query}」轉換為「${node.id}」。`;
+    networkSearchStatus.hidden = false;
+  } else {
+    networkSearchStatus.hidden = true;
+    networkSearchStatus.textContent = "";
+  }
+  focusNetworkNode(node.id);
 }
 
 function focusNetworkNode(nodeId) {
@@ -912,6 +937,7 @@ function bindPageSelectionEvents() {
 function bindNetworkControlEvents() {
   networkSearchForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    clearNetworkSearchFeedback();
     const query = networkSearchInput.value.trim();
     if (!query) {
       networkSearchInput.setCustomValidity("請輸入一個反切字");
@@ -923,7 +949,32 @@ function bindNetworkControlEvents() {
       await loadNetwork("global");
       node = state.network.nodes.find((item) => item.id === query);
     }
-    if (!node) {
+    if (node) {
+      focusNetworkSearchResult(node, query);
+      return;
+    }
+
+    let resolution;
+    try {
+      resolution = await fetchJson(
+        `/api/v1/character-candidates?char=${encodeURIComponent(query)}`,
+      );
+    } catch (error) {
+      networkSearchStatus.textContent = error.message;
+      networkSearchStatus.hidden = false;
+      return;
+    }
+    const matchedNodes = [
+      ...new Map(
+        resolution.candidates
+          .map((candidate) =>
+            state.network.nodes.find((item) => item.id === candidate.character),
+          )
+          .filter(Boolean)
+          .map((item) => [item.id, item]),
+      ).values(),
+    ];
+    if (!matchedNodes.length) {
       networkSearchInput.setCustomValidity("目前網絡中找不到這個反切字");
       networkSearchInput.reportValidity();
       return;
@@ -932,11 +983,41 @@ function bindNetworkControlEvents() {
     state.networkMinFrequency = 1;
     networkFrequency.value = "1";
     networkFrequencyValue.textContent = "1";
-    focusNetworkNode(node.id);
+    if (matchedNodes.length === 1) {
+      focusNetworkSearchResult(matchedNodes[0], query);
+      return;
+    }
+    state.networkSearchQuery = query;
+    networkSearchStatus.textContent = `「${query}」可對應多個反切字，請選擇：`;
+    networkSearchStatus.hidden = false;
+    networkSearchCandidates.innerHTML = matchedNodes
+      .map(
+        (item) => `
+          <button type="button" data-network-search-candidate="${escapeHtml(item.id)}">
+            ${escapeHtml(item.id)}
+          </button>
+        `,
+      )
+      .join("");
+    networkSearchCandidates.hidden = false;
   });
 
   networkSearchInput.addEventListener("input", () => {
     networkSearchInput.setCustomValidity("");
+    clearNetworkSearchFeedback();
+  });
+
+  networkSearchCandidates.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-network-search-candidate]");
+    if (!button) {
+      return;
+    }
+    const node = state.network.nodes.find(
+      (item) => item.id === button.dataset.networkSearchCandidate,
+    );
+    if (node) {
+      focusNetworkSearchResult(node, state.networkSearchQuery);
+    }
   });
 
   networkFrequency.addEventListener("input", () => {
