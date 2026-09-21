@@ -33,6 +33,8 @@ const state = {
   networkMinFrequency: 1,
   networkTransform: { x: 0, y: 0, scale: 1 },
   networkDrag: null,
+  networkPointers: new Map(),
+  networkPinch: null,
   networkDragMoved: false,
   networkSearchQuery: null,
 };
@@ -955,9 +957,13 @@ function focusNetworkNode(nodeId) {
   rebuildNetworkView();
 }
 
+function clampNetworkScale(scale) {
+  return Math.min(6, Math.max(0.28, scale));
+}
+
 function zoomNetworkAt(screenX, screenY, requestedScale) {
   const oldScale = state.networkTransform.scale;
-  const scale = Math.min(6, Math.max(0.28, requestedScale));
+  const scale = clampNetworkScale(requestedScale);
   const worldX = (screenX - state.networkTransform.x) / oldScale;
   const worldY = (screenY - state.networkTransform.y) / oldScale;
   state.networkTransform = {
@@ -966,6 +972,49 @@ function zoomNetworkAt(screenX, screenY, requestedScale) {
     y: screenY - worldY * scale,
   };
   drawNetwork();
+}
+
+function startNetworkDrag(pointer) {
+  state.networkDrag = {
+    pointerId: pointer.pointerId,
+    startX: pointer.clientX,
+    startY: pointer.clientY,
+    originX: state.networkTransform.x,
+    originY: state.networkTransform.y,
+  };
+  state.networkPinch = null;
+}
+
+function networkPinchGeometry() {
+  const [first, second] = [...state.networkPointers.values()];
+  if (!first || !second) {
+    return null;
+  }
+  const bounds = canvas.getBoundingClientRect();
+  return {
+    midpointX: (first.clientX + second.clientX) / 2 - bounds.left,
+    midpointY: (first.clientY + second.clientY) / 2 - bounds.top,
+    distance: Math.max(
+      1,
+      Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+    ),
+  };
+}
+
+function startNetworkPinch() {
+  const geometry = networkPinchGeometry();
+  if (!geometry) {
+    state.networkPinch = null;
+    return;
+  }
+  state.networkPinch = {
+    distance: geometry.distance,
+    scale: state.networkTransform.scale,
+    worldX: (geometry.midpointX - state.networkTransform.x) / state.networkTransform.scale,
+    worldY: (geometry.midpointY - state.networkTransform.y) / state.networkTransform.scale,
+  };
+  state.networkDrag = null;
+  state.networkDragMoved = true;
 }
 
 function bindPageSelectionEvents() {
@@ -1117,19 +1166,44 @@ function bindNetworkControlEvents() {
 function bindNetworkCanvasEvents() {
   canvas.addEventListener("pointerdown", (event) => {
     canvas.setPointerCapture(event.pointerId);
-    state.networkDrag = {
+    state.networkPointers.set(event.pointerId, {
       pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: state.networkTransform.x,
-      originY: state.networkTransform.y,
-    };
-    state.networkDragMoved = false;
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    if (state.networkPointers.size === 1) {
+      startNetworkDrag(state.networkPointers.get(event.pointerId));
+      state.networkDragMoved = false;
+    } else {
+      startNetworkPinch();
+    }
     canvas.style.cursor = "";
     canvas.classList.add("is-dragging");
   });
 
   canvas.addEventListener("pointermove", (event) => {
+    const pointer = state.networkPointers.get(event.pointerId);
+    if (pointer) {
+      pointer.clientX = event.clientX;
+      pointer.clientY = event.clientY;
+    }
+    if (state.networkPinch && state.networkPointers.size >= 2) {
+      const geometry = networkPinchGeometry();
+      if (!geometry) {
+        return;
+      }
+      const scale = clampNetworkScale(
+        state.networkPinch.scale * (geometry.distance / state.networkPinch.distance),
+      );
+      state.networkTransform = {
+        scale,
+        x: geometry.midpointX - state.networkPinch.worldX * scale,
+        y: geometry.midpointY - state.networkPinch.worldY * scale,
+      };
+      tooltip.hidden = true;
+      drawNetwork();
+      return;
+    }
     if (state.networkDrag?.pointerId === event.pointerId) {
       const deltaX = event.clientX - state.networkDrag.startX;
       const deltaY = event.clientY - state.networkDrag.startY;
@@ -1162,19 +1236,26 @@ function bindNetworkCanvasEvents() {
     tooltip.style.top = `${event.clientY - bounds.top + 12}px`;
   });
 
-  const endNetworkDrag = (event) => {
-    if (state.networkDrag?.pointerId !== event.pointerId) {
-      return;
-    }
+  const endNetworkPointer = (event) => {
     if (canvas.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
     }
+    state.networkPointers.delete(event.pointerId);
+    if (state.networkPointers.size >= 2) {
+      startNetworkPinch();
+      return;
+    }
+    if (state.networkPointers.size === 1) {
+      startNetworkDrag(state.networkPointers.values().next().value);
+      return;
+    }
     state.networkDrag = null;
+    state.networkPinch = null;
     canvas.classList.remove("is-dragging");
   };
 
-  canvas.addEventListener("pointerup", endNetworkDrag);
-  canvas.addEventListener("pointercancel", endNetworkDrag);
+  canvas.addEventListener("pointerup", endNetworkPointer);
+  canvas.addEventListener("pointercancel", endNetworkPointer);
 
   canvas.addEventListener("pointerleave", () => {
     tooltip.hidden = true;
