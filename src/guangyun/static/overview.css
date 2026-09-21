@@ -25,7 +25,10 @@ a {
 
 .overview-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(1180px, calc(100% - 32px));
+  min-height: 100vh;
   margin: 0 auto;
   padding: 72px 0 48px;
 }
@@ -926,6 +929,7 @@ footer {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+  margin-top: auto;
   padding-top: 24px;
   border-top: 1px solid var(--cp-border);
   color: var(--cp-text-muted);
