@@ -71,7 +71,7 @@ html[data-theme="dark"] {
   --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=32">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=33">
   </head>
   <body>
     <main class="overview-shell">
@@ -206,17 +206,11 @@ html[data-theme="dark"] {
           aria-labelledby="network-title"
           data-overview-section
         >
-          <div class="section-heading network-heading">
-            <div class="section-heading-copy">
-              <p class="section-number">05</p>
-              <div>
-                <h2 id="network-title">反切網絡</h2>
-                <p>箭頭由反切上字指向下字；核心模式便於閱讀，全局模式展示完整關係。</p>
-              </div>
-            </div>
-            <div class="mode-switch" role="group" aria-label="反切網絡模式">
-              <button type="button" data-network-mode="core">核心</button>
-              <button type="button" data-network-mode="global" class="is-active">全局</button>
+          <div class="section-heading">
+            <p class="section-number">05</p>
+            <div>
+              <h2 id="network-title">反切網絡</h2>
+              <p>箭頭由反切上字指向下字；可按使用次數篩選，或點擊節點查看一度、二度關係。</p>
             </div>
           </div>
           <div class="network-toolbar">
@@ -309,6 +303,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=35" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=37" defer></script>
   </body>
 </html>

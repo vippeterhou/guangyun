@@ -24,7 +24,6 @@ const state = {
   selectedVolumeId: null,
   selectedRhymeId: null,
   network: null,
-  networkMode: "global",
   visibleNetwork: { nodes: [], edges: [] },
   networkPositions: [],
   hoveredNetworkNode: null,
@@ -624,10 +623,8 @@ function createNetworkPositions(network) {
   }
 
   const maximumRadius = Math.max(1, Math.min(width, height) * 0.44);
-  const nodeRadii = network.nodes.map((node) =>
-    state.networkMode === "core"
-      ? 5 + Math.sqrt(node.count / maximum) * 13
-      : 2 + Math.sqrt(node.count / maximum) * 7,
+  const nodeRadii = network.nodes.map(
+    (node) => 2 + Math.sqrt(node.count / maximum) * 7,
   );
   const centerGap =
     network.nodes.length > 1 ? nodeRadii[0] + nodeRadii[1] + 8 : 0;
@@ -801,10 +798,8 @@ function drawNetwork() {
   const positions = new Map(state.networkPositions.map((node) => [node.id, node]));
   const highlightedId = state.hoveredNetworkNode || state.networkFocusNode;
   const highlightedNodes = highlightedId ? connectedTo(highlightedId) : null;
-  const baseAlpha = state.networkMode === "core" ? 0.26 : 0.1;
 
-  context.lineWidth =
-    (state.networkMode === "core" ? 0.8 : 0.45) / state.networkTransform.scale;
+  context.lineWidth = 0.45 / state.networkTransform.scale;
   for (const edge of state.visibleNetwork.edges) {
     const source = positions.get(edge.source);
     const target = positions.get(edge.target);
@@ -813,7 +808,7 @@ function drawNetwork() {
     }
     const highlighted =
       highlightedId && (edge.source === highlightedId || edge.target === highlightedId);
-    context.globalAlpha = highlighted ? 0.9 : highlightedId ? 0.045 : baseAlpha;
+    context.globalAlpha = highlighted ? 0.9 : highlightedId ? 0.045 : 0.1;
     context.strokeStyle = highlighted
       ? cssColor("--cp-network-upper")
       : cssColor("--cp-border-strong");
@@ -861,8 +856,7 @@ function drawNetwork() {
       screenY < bounds.height + 30;
     const showLabel =
       visible &&
-      (state.networkMode === "core" ||
-        state.networkFocusNode ||
+      (state.networkFocusNode ||
         (highlightedId && related) ||
         node.id === highlightedId ||
         state.networkTransform.scale >= labelThreshold);
@@ -902,27 +896,11 @@ function networkNodeAt(x, y) {
   return closest;
 }
 
-async function loadNetwork(mode) {
-  state.networkMode = mode;
-  state.hoveredNetworkNode = null;
-  state.networkFocusNode = null;
-  state.networkFocusDepth = 1;
-  state.networkMinFrequency = 1;
-  clearNetworkSearchFeedback();
-  networkFrequency.value = "1";
-  networkFrequencyValue.textContent = "1";
-  document.querySelectorAll("[data-network-mode]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.networkMode === mode);
-    button.disabled = true;
-  });
-  state.network = await fetchJson(`/api/v1/overview/fanqie?mode=${mode}`);
+async function initializeNetwork() {
+  state.network = await fetchJson("/api/v1/overview/fanqie?mode=global");
   networkFrequency.max = String(
     Math.max(10, Math.min(40, Math.max(...state.network.nodes.map((node) => node.count)))),
   );
-  document.querySelectorAll("[data-network-mode]").forEach((button) => {
-    button.disabled = false;
-  });
-  resizeCanvas();
 }
 
 function clearNetworkSearchFeedback() {
@@ -1046,11 +1024,6 @@ function bindPageSelectionEvents() {
       await selectSmallRhyme(Number(smallRhymeButton.dataset.smallRhymeId));
       return;
     }
-    const modeButton = event.target.closest("[data-network-mode]");
-    if (modeButton && modeButton.dataset.networkMode !== state.networkMode) {
-      await loadNetwork(modeButton.dataset.networkMode);
-      return;
-    }
     const depthButton = event.target.closest("[data-network-depth]");
     if (depthButton && state.networkFocusNode) {
       state.networkFocusDepth = Number(depthButton.dataset.networkDepth);
@@ -1069,11 +1042,7 @@ function bindNetworkControlEvents() {
       networkSearchInput.reportValidity();
       return;
     }
-    let node = state.network.nodes.find((item) => item.id === query);
-    if (!node && state.networkMode === "core") {
-      await loadNetwork("global");
-      node = state.network.nodes.find((item) => item.id === query);
-    }
+    const node = state.network.nodes.find((item) => item.id === query);
     if (node) {
       focusNetworkSearchResult(node, query);
       return;
@@ -1345,7 +1314,7 @@ async function initialize() {
     state.selectedVolumeId = state.overview.volumes[0].id;
     renderVolumeChoices();
     await selectRhyme(rhymesForVolume(state.selectedVolumeId)[0].id);
-    await loadNetwork("global");
+    await initializeNetwork();
     statusElement.hidden = true;
     contentElement.hidden = false;
     requestAnimationFrame(() => {

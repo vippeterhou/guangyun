@@ -571,10 +571,6 @@ h1 {
   color: var(--cp-accent);
 }
 
-.network-heading {
-  justify-content: space-between;
-}
-
 .mode-switch {
   display: flex;
   gap: 4px;
@@ -1061,10 +1057,6 @@ footer p {
 
   .choice-list {
     max-height: 240px;
-  }
-
-  .network-heading {
-    display: block;
   }
 
   .network-toolbar {
