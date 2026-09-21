@@ -71,7 +71,7 @@ html[data-theme="dark"] {
   --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=23">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=31">
   </head>
   <body>
     <main class="overview-shell">
@@ -92,7 +92,27 @@ html[data-theme="dark"] {
       </section>
 
       <div id="overview-content" hidden>
-        <section class="overview-section metrics-section" aria-labelledby="metrics-title">
+        <nav id="overview-toc" class="overview-toc" aria-label="本頁目錄">
+          <div class="overview-toc-list">
+            <span class="overview-toc-progress" aria-hidden="true"></span>
+            <span class="overview-toc-indicator" aria-hidden="true"></span>
+            <ol>
+              <li><a href="#overview-metrics" data-overview-toc><span>01</span>全書尺度</a></li>
+              <li><a href="#overview-volumes" data-overview-toc><span>02</span>五卷長卷</a></li>
+              <li><a href="#overview-rhymes" data-overview-toc><span>03</span>二百零六韻</a></li>
+              <li><a href="#overview-hierarchy" data-overview-toc><span>04</span>卷韻小韻</a></li>
+              <li><a href="#overview-network" data-overview-toc><span>05</span>反切網絡</a></li>
+              <li><a href="#overview-profile" data-overview-toc><span>06</span>全書側寫</a></li>
+            </ol>
+          </div>
+        </nav>
+
+        <section
+          id="overview-metrics"
+          class="overview-section metrics-section"
+          aria-labelledby="metrics-title"
+          data-overview-section
+        >
           <div class="section-heading">
             <p class="section-number">01</p>
             <div>
@@ -103,7 +123,12 @@ html[data-theme="dark"] {
           <div id="metrics" class="metrics-grid"></div>
         </section>
 
-        <section class="overview-section" aria-labelledby="volumes-title">
+        <section
+          id="overview-volumes"
+          class="overview-section"
+          aria-labelledby="volumes-title"
+          data-overview-section
+        >
           <div class="section-heading">
             <p class="section-number">02</p>
             <div>
@@ -114,7 +139,12 @@ html[data-theme="dark"] {
           <div id="volume-ribbons" class="volume-ribbons"></div>
         </section>
 
-        <section class="overview-section" aria-labelledby="rhyme-map-title">
+        <section
+          id="overview-rhymes"
+          class="overview-section"
+          aria-labelledby="rhyme-map-title"
+          data-overview-section
+        >
           <div class="section-heading rhyme-map-heading">
             <div class="section-heading-copy">
               <p class="section-number">03</p>
@@ -136,7 +166,12 @@ html[data-theme="dark"] {
           </p>
         </section>
 
-        <section class="overview-section" aria-labelledby="hierarchy-title">
+        <section
+          id="overview-hierarchy"
+          class="overview-section"
+          aria-labelledby="hierarchy-title"
+          data-overview-section
+        >
           <div class="section-heading">
             <p class="section-number">04</p>
             <div>
@@ -165,7 +200,12 @@ html[data-theme="dark"] {
           </div>
         </section>
 
-        <section class="overview-section" aria-labelledby="network-title">
+        <section
+          id="overview-network"
+          class="overview-section"
+          aria-labelledby="network-title"
+          data-overview-section
+        >
           <div class="section-heading network-heading">
             <div class="section-heading-copy">
               <p class="section-number">05</p>
@@ -229,7 +269,12 @@ html[data-theme="dark"] {
           </div>
         </section>
 
-        <section class="overview-section" aria-labelledby="profile-title">
+        <section
+          id="overview-profile"
+          class="overview-section"
+          aria-labelledby="profile-title"
+          data-overview-section
+        >
           <div class="section-heading">
             <p class="section-number">06</p>
             <div>
@@ -264,6 +309,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=27" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=31" defer></script>
   </body>
 </html>

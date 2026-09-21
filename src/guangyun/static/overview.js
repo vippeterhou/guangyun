@@ -11,6 +11,11 @@ const networkFrequency = document.querySelector("#network-frequency");
 const networkFrequencyValue = document.querySelector("#network-frequency-value");
 const networkFocusControls = document.querySelector("#network-focus-controls");
 const networkFocusLabel = document.querySelector("#network-focus-label");
+const overviewToc = document.querySelector("#overview-toc");
+const overviewTocLinks = [...document.querySelectorAll("[data-overview-toc]")];
+const overviewSections = [...document.querySelectorAll("[data-overview-section]")];
+let overviewTocFrame = null;
+let activeOverviewTocIndex = -1;
 
 const state = {
   overview: null,
@@ -42,6 +47,54 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("zh-Hant").format(value);
+}
+
+function updateOverviewToc() {
+  overviewTocFrame = null;
+  if (contentElement.hidden || window.innerWidth < 1400) {
+    return;
+  }
+  const marker = window.scrollY + window.innerHeight * 0.3;
+  const sectionOffsets = overviewSections.map(
+    (section) => section.getBoundingClientRect().top + window.scrollY,
+  );
+  let activeIndex = 0;
+  sectionOffsets.forEach((offset, index) => {
+    if (offset <= marker) {
+      activeIndex = index;
+    }
+  });
+  const nextIndex = Math.min(activeIndex + 1, overviewSections.length - 1);
+  const intervalStart = sectionOffsets[activeIndex];
+  const intervalEnd = sectionOffsets[nextIndex];
+  const intervalProgress =
+    intervalEnd === intervalStart
+      ? 0
+      : Math.min(1, Math.max(0, (marker - intervalStart) / (intervalEnd - intervalStart)));
+  const tocProgress =
+    overviewSections.length === 1
+      ? 0
+      : (activeIndex + intervalProgress) / (overviewSections.length - 1);
+  overviewToc.style.setProperty("--toc-position", `${8.333 + tocProgress * 83.334}%`);
+  if (activeIndex === activeOverviewTocIndex) {
+    return;
+  }
+  activeOverviewTocIndex = activeIndex;
+  overviewTocLinks.forEach((link, index) => {
+    link.classList.toggle("is-past", index < activeIndex);
+    link.classList.toggle("is-adjacent", Math.abs(index - activeIndex) === 1);
+    if (index === activeIndex) {
+      link.setAttribute("aria-current", "location");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+}
+
+function scheduleOverviewTocUpdate() {
+  if (overviewTocFrame === null) {
+    overviewTocFrame = requestAnimationFrame(updateOverviewToc);
+  }
 }
 
 async function fetchJson(url) {
@@ -1163,7 +1216,11 @@ function bindEvents() {
   bindPageSelectionEvents();
   bindNetworkControlEvents();
   bindNetworkCanvasEvents();
-  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("scroll", scheduleOverviewTocUpdate, { passive: true });
+  window.addEventListener("resize", () => {
+    resizeCanvas();
+    scheduleOverviewTocUpdate();
+  });
 }
 
 async function initialize() {
@@ -1180,7 +1237,10 @@ async function initialize() {
     await loadNetwork("global");
     statusElement.hidden = true;
     contentElement.hidden = false;
-    requestAnimationFrame(resizeCanvas);
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      updateOverviewToc();
+    });
   } catch (error) {
     statusElement.className = "overview-status error";
     statusElement.textContent = error.message;

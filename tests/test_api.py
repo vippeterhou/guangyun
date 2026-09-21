@@ -140,6 +140,8 @@ def test_overview_page(client) -> None:
     assert "探索廣韻" in response.text
     assert "overview.css" in response.text
     assert "overview.js" in response.text
+    assert 'id="overview-toc"' in response.text
+    assert response.text.count("data-overview-section") == 6
     assert 'id="network-search-form"' in response.text
     assert 'id="network-search-status"' in response.text
     assert 'id="network-search-candidates"' in response.text
