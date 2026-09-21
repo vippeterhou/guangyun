@@ -14,6 +14,7 @@ const networkFocusLabel = document.querySelector("#network-focus-label");
 const overviewToc = document.querySelector("#overview-toc");
 const overviewTocLinks = [...document.querySelectorAll("[data-overview-toc]")];
 const overviewSections = [...document.querySelectorAll("[data-overview-section]")];
+const networkWheelZoomSensitivity = 0.0015;
 let overviewTocFrame = null;
 let activeOverviewTocIndex = -1;
 
@@ -1201,7 +1202,14 @@ function bindNetworkCanvasEvents() {
     (event) => {
       event.preventDefault();
       const bounds = canvas.getBoundingClientRect();
-      const factor = event.deltaY < 0 ? 1.16 : 1 / 1.16;
+      let deltaMultiplier = 1;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaMultiplier = 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        deltaMultiplier = bounds.height;
+      }
+      const delta = Math.min(80, Math.max(-80, event.deltaY * deltaMultiplier));
+      const factor = Math.exp(-delta * networkWheelZoomSensitivity);
       zoomNetworkAt(
         event.clientX - bounds.left,
         event.clientY - bounds.top,
