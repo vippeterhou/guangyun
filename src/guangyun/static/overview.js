@@ -340,6 +340,24 @@ function renderRhymeChoices() {
     .join("");
 }
 
+function scrollSelectedRhymeChoice(behavior) {
+  const list = document.querySelector("#rhyme-list");
+  const selected = list.querySelector(".choice-button.is-active");
+  if (!selected) {
+    return;
+  }
+  const listBounds = list.getBoundingClientRect();
+  const selectedBounds = selected.getBoundingClientRect();
+  list.scrollTo({
+    top:
+      list.scrollTop +
+      selectedBounds.top -
+      listBounds.top -
+      (list.clientHeight - selectedBounds.height) / 2,
+    behavior,
+  });
+}
+
 async function selectRhyme(rhymeId, scrollToHierarchy = false) {
   const rhyme = state.overview.rhymes.find((item) => item.id === rhymeId);
   if (!rhyme) {
@@ -376,7 +394,11 @@ async function selectRhyme(rhymeId, scrollToHierarchy = false) {
     <p class="placeholder">選擇左側小韻，即可查看其中全部同音字。</p>
   `;
   if (scrollToHierarchy) {
-    document.querySelector("#hierarchy-title").scrollIntoView({ behavior: "smooth" });
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    scrollSelectedRhymeChoice(behavior);
+    document.querySelector("#hierarchy-title").scrollIntoView({ behavior });
   }
 }
 
