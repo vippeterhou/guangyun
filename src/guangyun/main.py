@@ -71,6 +71,7 @@ async def cache_read_only_api(request: Request, call_next):
                 86400
                 if request.url.path
                 in {
+                    "/api/v1/overview",
                     "/api/v1/source",
                     "/api/v1/volumes",
                     "/api/v1/rhymes",
@@ -84,3 +85,8 @@ async def cache_read_only_api(request: Request, call_next):
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
+
+
+@app.get("/overview", response_class=HTMLResponse, include_in_schema=False)
+def overview_page(request: Request):
+    return templates.TemplateResponse(request=request, name="overview.html")

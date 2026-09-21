@@ -9,8 +9,11 @@ from guangyun.database import get_connection
 from guangyun.repository import (
     entries_for_character,
     entry_by_id,
+    fanqie_network,
     list_rhymes,
     list_volumes,
+    overview_summary,
+    rhyme_overview,
     search_fanqie,
     small_rhyme_by_id,
     source_metadata,
@@ -112,6 +115,29 @@ def rhymes(volume_id: Annotated[int | None, Query(ge=1)] = None) -> dict:
     with get_connection() as connection:
         items = list_rhymes(connection, volume_id)
     return {"count": len(items), "items": items}
+
+
+@router.get("/rhymes/{rhyme_id}", tags=["browse"])
+def rhyme_detail(rhyme_id: Annotated[int, Path(ge=1)]) -> dict:
+    with get_connection() as connection:
+        item = rhyme_overview(connection, rhyme_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Rhyme not found")
+    return item
+
+
+@router.get("/overview", tags=["browse"])
+def overview() -> dict:
+    with get_connection() as connection:
+        return overview_summary(connection)
+
+
+@router.get("/overview/fanqie", tags=["browse"])
+def overview_fanqie(
+    mode: Annotated[str, Query(pattern="^(core|global)$")] = "core",
+) -> dict:
+    with get_connection() as connection:
+        return fanqie_network(connection, mode)
 
 
 @router.get("/search/fanqie", tags=["dictionary"])

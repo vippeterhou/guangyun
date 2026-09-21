@@ -67,10 +67,13 @@ html[data-theme="dark"] {
   --cp-highlight: rgba(253, 142, 161, 0.12);
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=4">
   </head>
   <body>
     <main class="page-shell">
+      <nav class="utility-nav" aria-label="主要導覽">
+        <a href="/overview">探索廣韻</a>
+      </nav>
       <header class="hero">
         <p class="eyebrow">校正宋本廣韻</p>
         <h1>廣韻查詢</h1>

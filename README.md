@@ -32,6 +32,7 @@ Open:
 - Website: http://127.0.0.1:8000/
 - API documentation: http://127.0.0.1:8000/docs
 - Character lookup: http://127.0.0.1:8000/api/v1/characters?char=東
+- Whole-book overview: http://127.0.0.1:8000/overview
 
 ## API
 
@@ -43,6 +44,9 @@ Open:
 | `GET /api/v1/small-rhymes/{id}` | Retrieve a small rhyme and its entries |
 | `GET /api/v1/volumes` | List the five volumes |
 | `GET /api/v1/rhymes` | List the 206 rhymes |
+| `GET /api/v1/rhymes/{id}` | Retrieve one rhyme and its small rhymes |
+| `GET /api/v1/overview` | Retrieve whole-book counts, rhyme density, and data profile |
+| `GET /api/v1/overview/fanqie?mode=core` | Retrieve the core or global fanqie network |
 | `GET /api/v1/search/fanqie?q=德紅` | Search by fanqie |
 | `GET /api/v1/source` | Retrieve source and license metadata |
 | `GET /api/v1/health` | Health check |

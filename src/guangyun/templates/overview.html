@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <script>
+      (() => {
+        const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+        const theme =
+          param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="從卷、韻、小韻、反切與字條統計探索《校正宋本廣韻》。">
+    <title>探索廣韻</title>
+    <style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=9">
+  </head>
+  <body>
+    <main class="overview-shell">
+      <nav class="overview-nav" aria-label="主要導覽">
+        <a href="/">返回查詢</a>
+      </nav>
+
+      <header class="overview-hero">
+        <p class="eyebrow">校正宋本廣韻</p>
+        <h1>探索廣韻</h1>
+        <p>
+          《廣韻》按聲調分卷，以韻目組織小韻，再由反切統攝同音字。
+        </p>
+      </header>
+
+      <section id="overview-status" class="overview-status" aria-live="polite">
+        正在整理全書……
+      </section>
+
+      <div id="overview-content" hidden>
+        <section class="overview-section metrics-section" aria-labelledby="metrics-title">
+          <div class="section-heading">
+            <p class="section-number">01</p>
+            <div>
+              <h2 id="metrics-title">一眼看懂《廣韻》</h2>
+              <p>從五卷到字條，先看全書的基本尺度。</p>
+            </div>
+          </div>
+          <div id="metrics" class="metrics-grid"></div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="volumes-title">
+          <div class="section-heading">
+            <p class="section-number">02</p>
+            <div>
+              <h2 id="volumes-title">五卷長卷</h2>
+              <p>每一小段是一個韻目，寬度表示收錄字條數量。點擊可進入該韻。</p>
+            </div>
+          </div>
+          <div id="volume-ribbons" class="volume-ribbons"></div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="rhyme-map-title">
+          <div class="section-heading rhyme-map-heading">
+            <div class="section-heading-copy">
+              <p class="section-number">03</p>
+              <div>
+                <h2 id="rhyme-map-title">二百零六韻</h2>
+                <p>使用同一組韻目方框，在原書次序與平上去入相承關係之間切換。</p>
+              </div>
+            </div>
+            <div class="mode-switch" role="group" aria-label="韻目排列模式">
+              <button type="button" data-rhyme-layout="source" class="is-active">原書次序</button>
+              <button type="button" data-rhyme-layout="tones">四聲相承</button>
+            </div>
+          </div>
+          <div class="rhyme-map-scroll">
+            <div id="rhyme-map" class="rhyme-map"></div>
+          </div>
+          <p id="rhyme-layout-note" class="rhyme-layout-note">
+            方框中的刻度表示該韻收字密度；點擊可進入該韻。
+          </p>
+        </section>
+
+        <section class="overview-section" aria-labelledby="hierarchy-title">
+          <div class="section-heading">
+            <p class="section-number">04</p>
+            <div>
+              <h2 id="hierarchy-title">從卷走到字</h2>
+              <p>依次選擇卷、韻與小韻，在原位查看同音字，不離開總覽。</p>
+            </div>
+          </div>
+          <div class="hierarchy-layout">
+            <div class="hierarchy-browser">
+              <div class="hierarchy-column">
+                <h3>卷</h3>
+                <div id="volume-list" class="choice-list"></div>
+              </div>
+              <div class="hierarchy-column">
+                <h3>韻</h3>
+                <div id="rhyme-list" class="choice-list"></div>
+              </div>
+              <div class="hierarchy-column">
+                <h3>小韻</h3>
+                <div id="small-rhyme-list" class="choice-list"></div>
+              </div>
+            </div>
+            <aside id="hierarchy-detail" class="detail-panel">
+              <p class="placeholder">選擇一個小韻查看詳情。</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="network-title">
+          <div class="section-heading network-heading">
+            <div class="section-heading-copy">
+              <p class="section-number">05</p>
+              <div>
+                <h2 id="network-title">反切網絡</h2>
+                <p>連線表示反切上字與下字的組合；核心模式便於閱讀，全局模式展示完整關係。</p>
+              </div>
+            </div>
+            <div class="mode-switch" role="group" aria-label="反切網絡模式">
+              <button type="button" data-network-mode="core" class="is-active">核心</button>
+              <button type="button" data-network-mode="global">全局</button>
+            </div>
+          </div>
+          <div class="network-layout">
+            <div class="network-stage">
+              <canvas id="fanqie-canvas" aria-label="反切關係網絡"></canvas>
+              <div id="network-tooltip" class="network-tooltip" hidden></div>
+            </div>
+            <aside id="network-detail" class="detail-panel network-detail">
+              <p class="placeholder">移到節點上查看反切字，點擊可固定相關連線。</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="profile-title">
+          <div class="section-heading">
+            <p class="section-number">06</p>
+            <div>
+              <h2 id="profile-title">全書側寫</h2>
+              <p>從收字密度、反切用字、補錄與罕見字符觀察這份資料。</p>
+            </div>
+          </div>
+          <div id="profile-metrics" class="profile-metrics"></div>
+          <div class="profile-columns">
+            <article class="profile-card">
+              <h3>收字最多的韻</h3>
+              <div id="largest-rhymes" class="rank-list"></div>
+            </article>
+            <article class="profile-card">
+              <h3>同音字最多的小韻</h3>
+              <div id="largest-small-rhymes" class="rank-list"></div>
+            </article>
+            <article class="profile-card">
+              <h3>常用反切上字</h3>
+              <div id="fanqie-upper" class="rank-list compact"></div>
+            </article>
+            <article class="profile-card">
+              <h3>常用反切下字</h3>
+              <div id="fanqie-lower" class="rank-list compact"></div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <footer>
+        <p>統計均由本站當前《校正宋本廣韻》資料即時計算。</p>
+        <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
+      </footer>
+    </main>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=12" defer></script>
+  </body>
+</html>

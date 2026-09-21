@@ -71,8 +71,57 @@ def test_browse_counts(client) -> None:
     assert rhymes["count"] == 206
 
 
+def test_overview_summary(client) -> None:
+    payload = client.get("/api/v1/overview").json()
+    assert payload["totals"] == {
+        "volumes": 5,
+        "rhymes": 206,
+        "small_rhymes": 3874,
+        "entries": 25541,
+    }
+    assert len(payload["volumes"]) == 5
+    assert len(payload["rhymes"]) == 206
+    assert len(payload["tone_correspondence"]) == 61
+    assert payload["tone_correspondence"][0]["level"]["name"] == "東"
+    assert payload["tone_correspondence"][1]["rising"]["merged"]["head_character"] == "湩"
+    assert payload["tone_correspondence"][22]["rising"]["merged"]["head_character"] == "𧤛"
+    assert payload["tone_correspondence"][22]["departing"]["merged"]["head_character"] == "櫬"
+    assert payload["tone_correspondence"][27]["entering"]["merged"]["head_character"] == "麧"
+    assert payload["tone_correspondence"][12]["kind"] == "departing-only"
+    assert payload["profile"]["glyph_variant_entries"] > 0
+    assert payload["largest_rhymes"]
+
+
+def test_rhyme_overview(client) -> None:
+    payload = client.get("/api/v1/rhymes/1").json()
+    assert payload["name"] == "東"
+    assert payload["small_rhyme_count"] > 0
+    assert payload["entry_count"] > 0
+    assert payload["small_rhymes"][0]["head_character"] == "東"
+
+
+def test_fanqie_network_modes(client) -> None:
+    core = client.get("/api/v1/overview/fanqie", params={"mode": "core"}).json()
+    global_network = client.get(
+        "/api/v1/overview/fanqie", params={"mode": "global"}
+    ).json()
+    assert core["node_count"] > 0
+    assert core["edge_count"] > 0
+    assert global_network["node_count"] >= core["node_count"]
+    assert global_network["edge_count"] >= core["edge_count"]
+
+
 def test_home_page(client) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "廣韻查詢" in response.text
+    assert 'href="/overview"' in response.text
     assert "CJKVI Dictionary Database" in response.text
+
+
+def test_overview_page(client) -> None:
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "探索廣韻" in response.text
+    assert "overview.css" in response.text
+    assert "overview.js" in response.text
