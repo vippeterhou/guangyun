@@ -125,3 +125,7 @@ def test_overview_page(client) -> None:
     assert "探索廣韻" in response.text
     assert "overview.css" in response.text
     assert "overview.js" in response.text
+    assert 'id="network-search-form"' in response.text
+    assert 'id="network-frequency"' in response.text
+    assert 'id="network-fit"' in response.text
+    assert 'id="network-focus-controls"' in response.text

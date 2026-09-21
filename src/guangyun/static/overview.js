@@ -2,7 +2,13 @@ const statusElement = document.querySelector("#overview-status");
 const contentElement = document.querySelector("#overview-content");
 const canvas = document.querySelector("#fanqie-canvas");
 const tooltip = document.querySelector("#network-tooltip");
-const networkDetail = document.querySelector("#network-detail");
+const networkSummary = document.querySelector("#network-summary");
+const networkSearchForm = document.querySelector("#network-search-form");
+const networkSearchInput = document.querySelector("#network-search-input");
+const networkFrequency = document.querySelector("#network-frequency");
+const networkFrequencyValue = document.querySelector("#network-frequency-value");
+const networkFocusControls = document.querySelector("#network-focus-controls");
+const networkFocusLabel = document.querySelector("#network-focus-label");
 
 const state = {
   overview: null,
@@ -10,9 +16,16 @@ const state = {
   selectedVolumeId: null,
   selectedRhymeId: null,
   network: null,
-  networkMode: "core",
+  networkMode: "global",
+  visibleNetwork: { nodes: [], edges: [] },
   networkPositions: [],
-  selectedNetworkNode: null,
+  hoveredNetworkNode: null,
+  networkFocusNode: null,
+  networkFocusDepth: 1,
+  networkMinFrequency: 1,
+  networkTransform: { x: 0, y: 0, scale: 1 },
+  networkDrag: null,
+  networkDragMoved: false,
 };
 
 function escapeHtml(value) {
@@ -404,14 +417,78 @@ function cssColor(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function resizeCanvas() {
-  const ratio = window.devicePixelRatio || 1;
-  const bounds = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.round(bounds.width * ratio));
-  canvas.height = Math.max(1, Math.round(bounds.height * ratio));
-  const context = canvas.getContext("2d");
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  drawNetwork();
+function networkRole(node) {
+  if (node.upper_count > 0 && node.lower_count > 0) {
+    return "both";
+  }
+  return node.upper_count > 0 ? "upper" : "lower";
+}
+
+function networkRoleLabel(node) {
+  return {
+    upper: "只作上字",
+    lower: "只作下字",
+    both: "上下皆用",
+  }[networkRole(node)];
+}
+
+function buildAdjacency(edges) {
+  const adjacency = new Map();
+  edges.forEach((edge) => {
+    if (!adjacency.has(edge.source)) {
+      adjacency.set(edge.source, new Set());
+    }
+    if (!adjacency.has(edge.target)) {
+      adjacency.set(edge.target, new Set());
+    }
+    adjacency.get(edge.source).add(edge.target);
+    adjacency.get(edge.target).add(edge.source);
+  });
+  return adjacency;
+}
+
+function filteredNetwork() {
+  const eligible = new Set(
+    state.network.nodes
+      .filter(
+        (node) =>
+          node.count >= state.networkMinFrequency || node.id === state.networkFocusNode,
+      )
+      .map((node) => node.id),
+  );
+  let edges = state.network.edges.filter(
+    (edge) => eligible.has(edge.source) && eligible.has(edge.target),
+  );
+  let included = eligible;
+
+  if (state.networkFocusNode) {
+    const adjacency = buildAdjacency(edges);
+    included = new Set([state.networkFocusNode]);
+    let frontier = new Set([state.networkFocusNode]);
+    for (let depth = 0; depth < state.networkFocusDepth; depth += 1) {
+      const next = new Set();
+      frontier.forEach((id) => {
+        (adjacency.get(id) || []).forEach((neighbor) => {
+          if (!included.has(neighbor)) {
+            included.add(neighbor);
+            next.add(neighbor);
+          }
+        });
+      });
+      frontier = next;
+    }
+    edges = edges.filter(
+      (edge) => included.has(edge.source) && included.has(edge.target),
+    );
+  } else {
+    const connected = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+    included = new Set([...eligible].filter((id) => connected.has(id)));
+  }
+
+  return {
+    nodes: state.network.nodes.filter((node) => included.has(node.id)),
+    edges,
+  };
 }
 
 function createNetworkPositions(network) {
@@ -420,21 +497,212 @@ function createNetworkPositions(network) {
   const height = bounds.height;
   const centerX = width / 2;
   const centerY = height / 2;
-  const maximum = Math.max(...network.nodes.map((node) => node.count));
+  const maximum = Math.max(1, ...network.nodes.map((node) => node.count));
+
+  if (state.networkFocusNode) {
+    const adjacency = buildAdjacency(network.edges);
+    const distances = new Map([[state.networkFocusNode, 0]]);
+    let frontier = [state.networkFocusNode];
+    while (frontier.length) {
+      const next = [];
+      frontier.forEach((id) => {
+        (adjacency.get(id) || []).forEach((neighbor) => {
+          if (!distances.has(neighbor)) {
+            distances.set(neighbor, distances.get(id) + 1);
+            next.push(neighbor);
+          }
+        });
+      });
+      frontier = next;
+    }
+    const rings = new Map();
+    network.nodes.forEach((node) => {
+      const distance = distances.get(node.id) ?? state.networkFocusDepth;
+      if (!rings.has(distance)) {
+        rings.set(distance, []);
+      }
+      rings.get(distance).push(node);
+    });
+    const ringStep = Math.max(90, Math.min(width, height) * 0.28);
+    return network.nodes.map((node) => {
+      const distance = distances.get(node.id) ?? state.networkFocusDepth;
+      const ring = rings.get(distance);
+      const index = ring.findIndex((item) => item.id === node.id);
+      const angle = distance === 0 ? 0 : (index / ring.length) * Math.PI * 2 - Math.PI / 2;
+      const radius = distance * ringStep;
+      return {
+        ...node,
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+        radius:
+          node.id === state.networkFocusNode
+            ? 14
+            : 4 + Math.sqrt(node.count / maximum) * 9,
+      };
+    });
+  }
+
   const maximumRadius = Math.max(1, Math.min(width, height) * 0.44);
-  const spacing = maximumRadius / Math.sqrt(Math.max(1, network.nodes.length - 1));
+  const nodeRadii = network.nodes.map((node) =>
+    state.networkMode === "core"
+      ? 5 + Math.sqrt(node.count / maximum) * 13
+      : 2 + Math.sqrt(node.count / maximum) * 7,
+  );
+  const centerGap =
+    network.nodes.length > 1 ? nodeRadii[0] + nodeRadii[1] + 8 : 0;
+  const outerRadius = Math.max(maximumRadius, centerGap);
   return network.nodes.map((node, index) => {
-    const radius = spacing * Math.sqrt(index);
+    const radius =
+      index === 0
+        ? 0
+        : centerGap +
+          (outerRadius - centerGap) *
+            Math.sqrt((index - 1) / Math.max(1, network.nodes.length - 2));
     const angle = index * 2.399963229728653;
     return {
       ...node,
       x: centerX + Math.cos(angle) * radius,
       y: centerY + Math.sin(angle) * radius,
-      radius: state.networkMode === "core"
-        ? 5 + Math.sqrt(node.count / maximum) * 13
-        : 2 + Math.sqrt(node.count / maximum) * 7,
+      radius: nodeRadii[index],
     };
   });
+}
+
+function updateNetworkSummary() {
+  if (!state.network) {
+    return;
+  }
+  const upper = state.visibleNetwork.nodes.filter((node) => node.upper_count > 0).length;
+  const lower = state.visibleNetwork.nodes.filter((node) => node.lower_count > 0).length;
+  const both = state.visibleNetwork.nodes.filter(
+    (node) => node.upper_count > 0 && node.lower_count > 0,
+  ).length;
+  const filtered =
+    state.visibleNetwork.nodes.length !== state.network.node_count ||
+    state.networkFocusNode !== null;
+  networkSummary.textContent = filtered
+    ? `目前顯示 ${formatNumber(state.visibleNetwork.nodes.length)} 個字、${formatNumber(state.visibleNetwork.edges.length)} 種組合；上字 ${formatNumber(upper)}、下字 ${formatNumber(lower)}、上下皆用 ${formatNumber(both)}。`
+    : `${formatNumber(state.network.node_count)} 個反切字、${formatNumber(state.network.edge_count)} 種組合；上字 ${formatNumber(upper)}、下字 ${formatNumber(lower)}、上下皆用 ${formatNumber(both)}。`;
+}
+
+function updateNetworkFocusControls() {
+  const focused = state.networkFocusNode !== null;
+  networkFocusControls.hidden = !focused;
+  if (!focused) {
+    return;
+  }
+  networkFocusLabel.textContent =
+    `以「${state.networkFocusNode}」為中心，顯示${state.networkFocusDepth === 1 ? "一度" : "二度"}關係`;
+  document.querySelectorAll("[data-network-depth]").forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      Number(button.dataset.networkDepth) === state.networkFocusDepth,
+    );
+  });
+}
+
+function resetNetworkTransform() {
+  state.networkTransform = { x: 0, y: 0, scale: 1 };
+}
+
+function fitNetworkView() {
+  const bounds = canvas.getBoundingClientRect();
+  if (!state.networkPositions.length || !bounds.width || !bounds.height) {
+    resetNetworkTransform();
+    drawNetwork();
+    return;
+  }
+  const padding = 48;
+  const xs = state.networkPositions.map((node) => node.x);
+  const ys = state.networkPositions.map((node) => node.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const contentWidth = Math.max(1, maxX - minX);
+  const contentHeight = Math.max(1, maxY - minY);
+  const scale = Math.min(
+    3,
+    Math.max(
+      0.28,
+      Math.min(
+        (bounds.width - padding * 2) / contentWidth,
+        (bounds.height - padding * 2) / contentHeight,
+      ),
+    ),
+  );
+  state.networkTransform = {
+    scale,
+    x: bounds.width / 2 - ((minX + maxX) / 2) * scale,
+    y: bounds.height / 2 - ((minY + maxY) / 2) * scale,
+  };
+  drawNetwork();
+}
+
+function rebuildNetworkView() {
+  state.visibleNetwork = filteredNetwork();
+  state.networkPositions = createNetworkPositions(state.visibleNetwork);
+  updateNetworkSummary();
+  updateNetworkFocusControls();
+  fitNetworkView();
+}
+
+function resizeCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  const bounds = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(bounds.width * ratio));
+  canvas.height = Math.max(1, Math.round(bounds.height * ratio));
+  canvas.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
+  if (state.network) {
+    rebuildNetworkView();
+  }
+}
+
+function connectedTo(id) {
+  const connected = new Set([id]);
+  state.visibleNetwork.edges.forEach((edge) => {
+    if (edge.source === id) {
+      connected.add(edge.target);
+    }
+    if (edge.target === id) {
+      connected.add(edge.source);
+    }
+  });
+  return connected;
+}
+
+function drawDirectionalEdge(context, source, target, highlighted) {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const unitX = dx / distance;
+  const unitY = dy / distance;
+  const startX = source.x + unitX * (source.radius + 1);
+  const startY = source.y + unitY * (source.radius + 1);
+  const endX = target.x - unitX * (target.radius + 3);
+  const endY = target.y - unitY * (target.radius + 3);
+  context.beginPath();
+  context.moveTo(startX, startY);
+  context.lineTo(endX, endY);
+  context.stroke();
+
+  if (!highlighted && !state.networkFocusNode && state.networkTransform.scale < 2.2) {
+    return;
+  }
+  const arrowSize = 4 / state.networkTransform.scale;
+  const angle = Math.atan2(dy, dx);
+  context.beginPath();
+  context.moveTo(endX, endY);
+  context.lineTo(
+    endX - Math.cos(angle - Math.PI / 6) * arrowSize,
+    endY - Math.sin(angle - Math.PI / 6) * arrowSize,
+  );
+  context.lineTo(
+    endX - Math.cos(angle + Math.PI / 6) * arrowSize,
+    endY - Math.sin(angle + Math.PI / 6) * arrowSize,
+  );
+  context.closePath();
+  context.fill();
 }
 
 function drawNetwork() {
@@ -443,54 +711,109 @@ function drawNetwork() {
   }
   const context = canvas.getContext("2d");
   const bounds = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, bounds.width, bounds.height);
-  state.networkPositions = createNetworkPositions(state.network);
+  context.save();
+  context.translate(state.networkTransform.x, state.networkTransform.y);
+  context.scale(state.networkTransform.scale, state.networkTransform.scale);
   const positions = new Map(state.networkPositions.map((node) => [node.id, node]));
-  const selected = state.selectedNetworkNode;
+  const highlightedId = state.hoveredNetworkNode || state.networkFocusNode;
+  const highlightedNodes = highlightedId ? connectedTo(highlightedId) : null;
+  const baseAlpha = state.networkMode === "core" ? 0.26 : 0.1;
 
-  context.lineWidth = state.networkMode === "core" ? 0.8 : 0.35;
-  context.strokeStyle = cssColor("--cp-border-strong");
-  for (const edge of state.network.edges) {
+  context.lineWidth =
+    (state.networkMode === "core" ? 0.8 : 0.45) / state.networkTransform.scale;
+  for (const edge of state.visibleNetwork.edges) {
     const source = positions.get(edge.source);
     const target = positions.get(edge.target);
     if (!source || !target) {
       continue;
     }
-    const highlighted = selected && (edge.source === selected || edge.target === selected);
-    context.globalAlpha = highlighted ? 0.9 : selected ? 0.08 : state.networkMode === "core" ? 0.3 : 0.12;
-    context.strokeStyle = highlighted ? cssColor("--cp-accent") : cssColor("--cp-border-strong");
-    context.beginPath();
-    context.moveTo(source.x, source.y);
-    context.lineTo(target.x, target.y);
-    context.stroke();
+    const highlighted =
+      highlightedId && (edge.source === highlightedId || edge.target === highlightedId);
+    context.globalAlpha = highlighted ? 0.9 : highlightedId ? 0.045 : baseAlpha;
+    context.strokeStyle = highlighted
+      ? cssColor("--cp-network-upper")
+      : cssColor("--cp-border-strong");
+    context.fillStyle = context.strokeStyle;
+    drawDirectionalEdge(context, source, target, highlighted);
   }
 
+  const labelThreshold =
+    state.networkPositions.length > 700 ? 2.8 : state.networkPositions.length > 250 ? 2.1 : 1.45;
   for (const node of state.networkPositions) {
-    const highlighted = !selected || node.id === selected;
-    context.globalAlpha = highlighted ? 1 : 0.28;
-    context.fillStyle = node.id === selected ? cssColor("--cp-accent") : cssColor("--cp-text");
+    const related = !highlightedNodes || highlightedNodes.has(node.id);
+    const role = networkRole(node);
+    context.globalAlpha = related ? 0.96 : 0.16;
+    context.fillStyle =
+      role === "upper" ? cssColor("--cp-surface") : cssColor("--cp-network-lower");
     context.beginPath();
     context.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
     context.fill();
-    if (state.networkMode === "core" || node.id === selected) {
+
+    if (role === "upper" || role === "both") {
+      const ringWidth = Math.max(
+        2.4 / state.networkTransform.scale,
+        node.radius * 0.22,
+      );
+      context.globalAlpha = related ? 1 : 0.18;
+      context.lineWidth = ringWidth;
+      context.strokeStyle = cssColor("--cp-network-upper");
+      context.beginPath();
+      context.arc(
+        node.x,
+        node.y,
+        Math.max(0.5, node.radius - ringWidth / 2),
+        0,
+        Math.PI * 2,
+      );
+      context.stroke();
+    }
+
+    const screenX = node.x * state.networkTransform.scale + state.networkTransform.x;
+    const screenY = node.y * state.networkTransform.scale + state.networkTransform.y;
+    const visible =
+      screenX > -30 &&
+      screenX < bounds.width + 30 &&
+      screenY > -30 &&
+      screenY < bounds.height + 30;
+    const showLabel =
+      visible &&
+      (state.networkMode === "core" ||
+        state.networkFocusNode ||
+        (highlightedId && related) ||
+        node.id === highlightedId ||
+        state.networkTransform.scale >= labelThreshold);
+    if (showLabel) {
       context.globalAlpha = 1;
       context.fillStyle = cssColor("--cp-text");
-      context.font = node.id === selected
-        ? '700 18px "Songti SC", "STSong", serif'
-        : '13px "Songti SC", "STSong", serif';
+      const emphasized =
+        node.id === highlightedId ||
+        node.id === state.networkFocusNode;
+      const fontSize = (emphasized ? 16 : 12) / state.networkTransform.scale;
+      context.font = `${emphasized ? "700" : "500"} ${fontSize}px "Songti SC", "STSong", serif`;
       context.textAlign = "center";
-      context.fillText(node.id, node.x, node.y - node.radius - 5);
+      context.fillText(
+        node.id,
+        node.x,
+        node.y - node.radius - 6 / state.networkTransform.scale,
+      );
     }
   }
   context.globalAlpha = 1;
+  context.restore();
 }
 
 function networkNodeAt(x, y) {
+  const worldX = (x - state.networkTransform.x) / state.networkTransform.scale;
+  const worldY = (y - state.networkTransform.y) / state.networkTransform.scale;
   let closest = null;
   let closestDistance = Infinity;
   for (const node of state.networkPositions) {
-    const distance = Math.hypot(node.x - x, node.y - y);
-    if (distance <= Math.max(8, node.radius + 3) && distance < closestDistance) {
+    const distance = Math.hypot(node.x - worldX, node.y - worldY);
+    const hitRadius = Math.max(8 / state.networkTransform.scale, node.radius + 3);
+    if (distance <= hitRadius && distance < closestDistance) {
       closest = node;
       closestDistance = distance;
     }
@@ -498,63 +821,53 @@ function networkNodeAt(x, y) {
   return closest;
 }
 
-function showNetworkNode(node) {
-  const relatedEdges = state.network.edges
-    .filter((edge) => edge.source === node.id || edge.target === node.id)
-    .slice(0, 12);
-  const examples = relatedEdges
-    .flatMap((edge) =>
-      edge.small_rhymes.slice(0, 2).map(
-        (smallRhyme) => `
-          <div class="network-detail-item">
-            ${escapeHtml(edge.source)}${escapeHtml(edge.target)}切：
-            ${escapeHtml(smallRhyme.head_character)}小韻 · ${escapeHtml(smallRhyme.rhyme_name)}韻
-          </div>
-        `,
-      ),
-    )
-    .join("");
-  networkDetail.innerHTML = `
-    <h3>${escapeHtml(node.id)}</h3>
-    <div class="detail-meta">
-      <span class="detail-tag">上字 ${node.upper_count} 次</span>
-      <span class="detail-tag">下字 ${node.lower_count} 次</span>
-      <span class="detail-tag">合計 ${node.count} 次</span>
-    </div>
-    <div class="network-detail-list">${examples || '<p class="placeholder">沒有可顯示的組合。</p>'}</div>
-  `;
-}
-
 async function loadNetwork(mode) {
   state.networkMode = mode;
-  state.selectedNetworkNode = null;
+  state.hoveredNetworkNode = null;
+  state.networkFocusNode = null;
+  state.networkFocusDepth = 1;
+  state.networkMinFrequency = 1;
+  networkFrequency.value = "1";
+  networkFrequencyValue.textContent = "1";
   document.querySelectorAll("[data-network-mode]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.networkMode === mode);
     button.disabled = true;
   });
-  networkDetail.innerHTML = '<p class="placeholder">正在整理反切關係……</p>';
   state.network = await fetchJson(`/api/v1/overview/fanqie?mode=${mode}`);
-  const upperCharacterCount = state.network.nodes.filter((node) => node.upper_count > 0).length;
-  const lowerCharacterCount = state.network.nodes.filter((node) => node.lower_count > 0).length;
-  const bothCharacterCount = state.network.nodes.filter(
-    (node) => node.upper_count > 0 && node.lower_count > 0,
-  ).length;
-  networkDetail.innerHTML = `
-    <p class="placeholder">
-      ${formatNumber(state.network.node_count)} 個反切字 ·
-      ${formatNumber(state.network.edge_count)} 種組合。<br>
-      反切上字 ${formatNumber(upperCharacterCount)} 個 ·
-      反切下字 ${formatNumber(lowerCharacterCount)} 個 ·
-      兼作上下字 ${formatNumber(bothCharacterCount)} 個。移動或點擊節點查看詳情。
-    </p>
-  `;
+  networkFrequency.max = String(
+    Math.max(10, Math.min(40, Math.max(...state.network.nodes.map((node) => node.count)))),
+  );
   document.querySelectorAll("[data-network-mode]").forEach((button) => {
     button.disabled = false;
   });
   resizeCanvas();
 }
 
-function bindEvents() {
+function focusNetworkNode(nodeId) {
+  const node = state.network.nodes.find((item) => item.id === nodeId);
+  if (!node) {
+    return;
+  }
+  state.hoveredNetworkNode = null;
+  state.networkFocusNode = node.id;
+  state.networkFocusDepth = 1;
+  rebuildNetworkView();
+}
+
+function zoomNetworkAt(screenX, screenY, requestedScale) {
+  const oldScale = state.networkTransform.scale;
+  const scale = Math.min(6, Math.max(0.28, requestedScale));
+  const worldX = (screenX - state.networkTransform.x) / oldScale;
+  const worldY = (screenY - state.networkTransform.y) / oldScale;
+  state.networkTransform = {
+    scale,
+    x: screenX - worldX * scale,
+    y: screenY - worldY * scale,
+  };
+  drawNetwork();
+}
+
+function bindPageSelectionEvents() {
   document.addEventListener("click", async (event) => {
     const volumeButton = event.target.closest("[data-volume-id]");
     if (volumeButton) {
@@ -586,39 +899,189 @@ function bindEvents() {
     const modeButton = event.target.closest("[data-network-mode]");
     if (modeButton && modeButton.dataset.networkMode !== state.networkMode) {
       await loadNetwork(modeButton.dataset.networkMode);
+      return;
+    }
+    const depthButton = event.target.closest("[data-network-depth]");
+    if (depthButton && state.networkFocusNode) {
+      state.networkFocusDepth = Number(depthButton.dataset.networkDepth);
+      rebuildNetworkView();
     }
   });
+}
 
-  canvas.addEventListener("mousemove", (event) => {
+function bindNetworkControlEvents() {
+  networkSearchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const query = networkSearchInput.value.trim();
+    if (!query) {
+      networkSearchInput.setCustomValidity("請輸入一個反切字");
+      networkSearchInput.reportValidity();
+      return;
+    }
+    let node = state.network.nodes.find((item) => item.id === query);
+    if (!node && state.networkMode === "core") {
+      await loadNetwork("global");
+      node = state.network.nodes.find((item) => item.id === query);
+    }
+    if (!node) {
+      networkSearchInput.setCustomValidity("目前網絡中找不到這個反切字");
+      networkSearchInput.reportValidity();
+      return;
+    }
+    networkSearchInput.setCustomValidity("");
+    state.networkMinFrequency = 1;
+    networkFrequency.value = "1";
+    networkFrequencyValue.textContent = "1";
+    focusNetworkNode(node.id);
+  });
+
+  networkSearchInput.addEventListener("input", () => {
+    networkSearchInput.setCustomValidity("");
+  });
+
+  networkFrequency.addEventListener("input", () => {
+    state.networkMinFrequency = Number(networkFrequency.value);
+    networkFrequencyValue.textContent = networkFrequency.value;
+    rebuildNetworkView();
+  });
+
+  document.querySelector("#network-fit").addEventListener("click", fitNetworkView);
+  document.querySelector("#network-reset").addEventListener("click", () => {
+    resetNetworkTransform();
+    drawNetwork();
+  });
+  document.querySelector("#network-return-global").addEventListener("click", () => {
+    state.networkFocusNode = null;
+    state.hoveredNetworkNode = null;
+    rebuildNetworkView();
+  });
+}
+
+function bindNetworkCanvasEvents() {
+  canvas.addEventListener("pointerdown", (event) => {
+    canvas.setPointerCapture(event.pointerId);
+    state.networkDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: state.networkTransform.x,
+      originY: state.networkTransform.y,
+    };
+    state.networkDragMoved = false;
+    canvas.style.cursor = "";
+    canvas.classList.add("is-dragging");
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (state.networkDrag?.pointerId === event.pointerId) {
+      const deltaX = event.clientX - state.networkDrag.startX;
+      const deltaY = event.clientY - state.networkDrag.startY;
+      if (Math.hypot(deltaX, deltaY) > 3) {
+        state.networkDragMoved = true;
+      }
+      state.networkTransform.x = state.networkDrag.originX + deltaX;
+      state.networkTransform.y = state.networkDrag.originY + deltaY;
+      tooltip.hidden = true;
+      drawNetwork();
+      return;
+    }
     const bounds = canvas.getBoundingClientRect();
     const node = networkNodeAt(event.clientX - bounds.left, event.clientY - bounds.top);
+    const hoveredId = node?.id ?? null;
+    if (hoveredId !== state.hoveredNetworkNode) {
+      state.hoveredNetworkNode = hoveredId;
+      drawNetwork();
+    }
     if (!node) {
       tooltip.hidden = true;
-      canvas.style.cursor = "default";
+      canvas.style.cursor = "";
       return;
     }
     canvas.style.cursor = "pointer";
     tooltip.hidden = false;
-    tooltip.textContent = `${node.id} · 上字 ${node.upper_count} · 下字 ${node.lower_count}`;
+    tooltip.textContent =
+      `${node.id} · ${networkRoleLabel(node)} · 上字 ${node.upper_count} · 下字 ${node.lower_count}`;
     tooltip.style.left = `${event.clientX - bounds.left + 12}px`;
     tooltip.style.top = `${event.clientY - bounds.top + 12}px`;
   });
 
-  canvas.addEventListener("mouseleave", () => {
+  const endNetworkDrag = (event) => {
+    if (state.networkDrag?.pointerId !== event.pointerId) {
+      return;
+    }
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    state.networkDrag = null;
+    canvas.classList.remove("is-dragging");
+  };
+
+  canvas.addEventListener("pointerup", endNetworkDrag);
+  canvas.addEventListener("pointercancel", endNetworkDrag);
+
+  canvas.addEventListener("pointerleave", () => {
     tooltip.hidden = true;
-    canvas.style.cursor = "default";
+    state.hoveredNetworkNode = null;
+    canvas.style.cursor = "";
+    if (!state.networkDrag) {
+      drawNetwork();
+    }
   });
 
   canvas.addEventListener("click", (event) => {
+    if (state.networkDragMoved) {
+      state.networkDragMoved = false;
+      return;
+    }
     const bounds = canvas.getBoundingClientRect();
     const node = networkNodeAt(event.clientX - bounds.left, event.clientY - bounds.top);
-    state.selectedNetworkNode = node ? node.id : null;
     if (node) {
-      showNetworkNode(node);
+      focusNetworkNode(node.id);
     }
-    drawNetwork();
   });
 
+  canvas.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      const bounds = canvas.getBoundingClientRect();
+      const factor = event.deltaY < 0 ? 1.16 : 1 / 1.16;
+      zoomNetworkAt(
+        event.clientX - bounds.left,
+        event.clientY - bounds.top,
+        state.networkTransform.scale * factor,
+      );
+    },
+    { passive: false },
+  );
+
+  canvas.addEventListener("keydown", (event) => {
+    const bounds = canvas.getBoundingClientRect();
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      zoomNetworkAt(bounds.width / 2, bounds.height / 2, state.networkTransform.scale * 1.2);
+    } else if (event.key === "-") {
+      event.preventDefault();
+      zoomNetworkAt(bounds.width / 2, bounds.height / 2, state.networkTransform.scale / 1.2);
+    } else if (event.key === "0") {
+      event.preventDefault();
+      fitNetworkView();
+    } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      const amount = 32;
+      state.networkTransform.x +=
+        event.key === "ArrowLeft" ? amount : event.key === "ArrowRight" ? -amount : 0;
+      state.networkTransform.y +=
+        event.key === "ArrowUp" ? amount : event.key === "ArrowDown" ? -amount : 0;
+      drawNetwork();
+    }
+  });
+}
+
+function bindEvents() {
+  bindPageSelectionEvents();
+  bindNetworkControlEvents();
+  bindNetworkCanvasEvents();
   window.addEventListener("resize", resizeCanvas);
 }
 
@@ -633,7 +1096,7 @@ async function initialize() {
     state.selectedVolumeId = state.overview.volumes[0].id;
     renderVolumeChoices();
     await selectRhyme(rhymesForVolume(state.selectedVolumeId)[0].id);
-    await loadNetwork("core");
+    await loadNetwork("global");
     statusElement.hidden = true;
     contentElement.hidden = false;
     requestAnimationFrame(resizeCanvas);

@@ -39,6 +39,8 @@
   --cp-panel-strong: rgba(255, 255, 255, 0.96);
   --cp-sheen: rgba(255, 255, 255, 0.55);
   --cp-highlight: rgba(177, 31, 75, 0.12);
+  --cp-network-upper: #f59e0b;
+  --cp-network-lower: #1d4ed8;
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -65,9 +67,11 @@ html[data-theme="dark"] {
   --cp-panel-strong: rgba(41, 41, 41, 0.96);
   --cp-sheen: rgba(255, 255, 255, 0.04);
   --cp-highlight: rgba(253, 142, 161, 0.12);
+  --cp-network-upper: #fbbf24;
+  --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=21">
   </head>
   <body>
     <main class="overview-shell">
@@ -167,22 +171,59 @@ html[data-theme="dark"] {
               <p class="section-number">05</p>
               <div>
                 <h2 id="network-title">反切網絡</h2>
-                <p>連線表示反切上字與下字的組合；核心模式便於閱讀，全局模式展示完整關係。</p>
+                <p>箭頭由反切上字指向下字；核心模式便於閱讀，全局模式展示完整關係。</p>
               </div>
             </div>
             <div class="mode-switch" role="group" aria-label="反切網絡模式">
-              <button type="button" data-network-mode="core" class="is-active">核心</button>
-              <button type="button" data-network-mode="global">全局</button>
+              <button type="button" data-network-mode="core">核心</button>
+              <button type="button" data-network-mode="global" class="is-active">全局</button>
+            </div>
+          </div>
+          <div class="network-toolbar">
+            <form id="network-search-form" class="network-search" role="search">
+              <label for="network-search-input">尋找反切字</label>
+              <div class="network-search-row">
+                <input
+                  id="network-search-input"
+                  type="search"
+                  inputmode="text"
+                  autocomplete="off"
+                  placeholder="輸入一字"
+                >
+                <button type="submit">定位</button>
+              </div>
+            </form>
+            <label class="network-frequency" for="network-frequency">
+              <span>最低使用次數</span>
+              <strong id="network-frequency-value">1</strong>
+              <input id="network-frequency" type="range" min="1" max="20" value="1">
+            </label>
+            <div class="network-view-actions" aria-label="網絡視圖控制">
+              <button id="network-fit" type="button">適應視圖</button>
+              <button id="network-reset" type="button">重置</button>
+            </div>
+          </div>
+          <div class="network-context">
+            <p id="network-summary" class="network-summary">正在整理反切關係……</p>
+            <div class="network-legend" aria-label="反切字角色圖例">
+              <span><i class="is-upper"></i>只作上字</span>
+              <span><i class="is-lower"></i>只作下字</span>
+              <span><i class="is-both"></i>上下皆用</span>
+            </div>
+            <div id="network-focus-controls" class="network-focus-controls" hidden>
+              <span id="network-focus-label"></span>
+              <div class="mode-switch" role="group" aria-label="局部關係深度">
+                <button type="button" data-network-depth="1" class="is-active">一度</button>
+                <button type="button" data-network-depth="2">二度</button>
+              </div>
+              <button id="network-return-global" type="button">返回全圖</button>
             </div>
           </div>
           <div class="network-layout">
             <div class="network-stage">
-              <canvas id="fanqie-canvas" aria-label="反切關係網絡"></canvas>
+              <canvas id="fanqie-canvas" aria-label="反切關係網絡" tabindex="0"></canvas>
               <div id="network-tooltip" class="network-tooltip" hidden></div>
             </div>
-            <aside id="network-detail" class="detail-panel network-detail">
-              <p class="placeholder">移到節點上查看反切字，點擊可固定相關連線。</p>
-            </aside>
           </div>
         </section>
 
@@ -221,6 +262,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=14" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=24" defer></script>
   </body>
 </html>
