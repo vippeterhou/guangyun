@@ -69,3 +69,102 @@ def test_first_small_rhyme_is_east(database_file: Path) -> None:
         assert row == ("東", "德紅切", "東", "廣韻上平聲卷第一")
     finally:
         connection.close()
+
+
+def test_missing_catalog_rhyme_names_are_corrected(database_file: Path) -> None:
+    connection = sqlite3.connect(database_file)
+    try:
+        rows = connection.execute(
+            """
+            SELECT source_xml_id, name
+            FROM rhymes
+            WHERE source_xml_id IN ('q05', 'r12', 'r29')
+            ORDER BY source_xml_id
+            """
+        ).fetchall()
+        assert rows == [("q05", "寘"), ("r12", "曷"), ("r29", "葉")]
+        assert connection.execute(
+            "SELECT COUNT(*) FROM rhymes WHERE name = '？'"
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+
+def test_ids_characters_are_normalized(database_file: Path) -> None:
+    corrections = {
+        "⿰⿱爻火攵": "𢽻",
+        "⿰⿱罒⿸厂畏頁": "𩕾",
+        "⿰⿸厂己頁": "頋",
+        "⿰丩周": "𰀧",
+        "⿰市犬": "𢂤",
+        "⿰帝巴": "𢑦",
+        "⿰朿攴": "㩽",
+        "⿰氵⿱一㜽": "涇",
+        "⿰氵𤎭": "𤃨",
+        "⿰祟蚤": "𧎹",
+        "⿰臼宂": "𦥨",
+        "⿰舂弋": "㦼",
+        "⿰舟灷": "𦩗",
+        "⿰言𠂷": "䛭",
+        "⿰𦊆刂": "㓻",
+        "⿰革朿": "𩊯",
+        "⿰鳥𠂜": "𩾳",
+        "⿰黍易": "䵘",
+        "⿱⿰知于日": "𣉻",
+        "⿱䒱豆": "𧯷",
+        "⿱丿𠔿": "𡦼",
+        "⿱卲糸": "綤",
+        "⿱冂父": "𣅝",
+        "⿱日黽": "𪓙",
+        "⿱士軍": "𨌗",
+        "⿱艹尐": "𢘿",
+        "⿱雨⿺辶田": "䢮",
+        "⿱食芖": "𩛛",
+        "⿱髟⿹戈隹": "𩯰",
+        "⿱鼓釜": "䥢",
+        "⿱𦫶廾": "𦭺",
+        "⿲王目义": "瑖",
+        "⿳亠圍乂": "𠆎",
+        "⿳日八寸": "䙷",
+        "⿳栒一八": "𣕍",
+        "⿹𠄎夕": "夃",
+    }
+    connection = sqlite3.connect(database_file)
+    try:
+        for source, target in corrections.items():
+            assert connection.execute(
+                "SELECT COUNT(*) FROM entries WHERE character = ?",
+                (source,),
+            ).fetchone()[0] == 0
+            assert connection.execute(
+                "SELECT COUNT(*) FROM entries WHERE character = ?",
+                (target,),
+            ).fetchone()[0] > 0
+
+        rows = connection.execute(
+            """
+            SELECT character, original_character, definition_text
+            FROM entries
+            WHERE character = '𪓙'
+            ORDER BY id
+            """
+        ).fetchall()
+        assert [(row[0], row[1]) for row in rows] == [
+            ("𪓙", "⿱日黽"),
+            ("𪓙", "⿱日黽"),
+        ]
+        assert all("⿱日黽" not in row[2] for row in rows)
+        assert "史𪓙之後漢有𪓙錯" in rows[1][2]
+        remaining_ids = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT DISTINCT character
+                FROM entries
+                WHERE character GLOB '*[⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻]*'
+                """
+            )
+        }
+        assert remaining_ids == {"⿻𥈸一", "⿱⿰来攵正", "⿰隺犬", "⿱芖雨"}
+    finally:
+        connection.close()

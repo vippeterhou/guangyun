@@ -117,6 +117,49 @@ CHINESE_ORDINAL = re.compile(r"第[一二三四五六七八九十百]+$")
 COUNT_SUFFIX = re.compile(r"([一二三四五六七八九十百廿卅]+)$")
 EDITORIAL_MARKS = "〾"
 UNIHAN_CODEPOINT = re.compile(r"U\+([0-9A-F]{4,6})")
+RHYME_NAME_CORRECTIONS = {
+    "q05": "寘",
+    "r12": "曷",
+    "r29": "葉",
+}
+CHARACTER_CORRECTIONS = {
+    "⿰⿱爻火攵": "𢽻",  # 卷三・巧韻・絞小韻
+    "⿰⿱罒⿸厂畏頁": "𩕾",  # 卷四・願韻・願小韻
+    "⿰⿸厂己頁": "頋",  # 卷四・暮韻・顧小韻
+    "⿰丩周": "𰀧",  # 卷二・尤韻・𠁫小韻
+    "⿰市犬": "𢂤",  # 卷四・隊韻・佩小韻
+    "⿰帝巴": "𢑦",  # 卷二・宵韻・韶小韻
+    "⿰朿攴": "㩽",  # 卷一・支韻・竒小韻
+    "⿰氵⿱一㜽": "涇",  # 卷三・靜韻・痙小韻
+    "⿰氵𤎭": "𤃨",  # 卷四・勘韻・顲小韻
+    "⿰祟蚤": "𧎹",  # 卷四・泰韻・最小韻
+    "⿰臼宂": "𦥨",  # 卷三・小韻・鷕小韻
+    "⿰舂弋": "㦼",  # 卷四・絳韻・淙小韻
+    "⿰舟灷": "𦩗",  # 卷三・寢韻・朕小韻
+    "⿰言𠂷": "䛭",  # 卷四・映韻・䛭小韻
+    "⿰𦊆刂": "㓻",  # 卷二・唐韻・岡小韻
+    "⿰革朿": "𩊯",  # 卷五・麥韻・栜小韻
+    "⿰鳥𠂜": "𩾳",  # 卷五・緝韻・急/𩾳小韻；卷五・葉韻・衱小韻
+    "⿰黍易": "䵘",  # 卷四・卦韻・曬小韻
+    "⿱⿰知于日": "𣉻",  # 卷四・寘韻・智小韻
+    "⿱䒱豆": "𧯷",  # 卷三・隱韻・謹小韻
+    "⿱丿𠔿": "𡦼",  # 卷三・腫韻・宂小韻
+    "⿱卲糸": "綤",  # 卷三・小韻・紹小韻
+    "⿱冂父": "𣅝",  # 卷五・沒韻・𣅝小韻
+    "⿱日黽": "𪓙",  # 卷二・宵韻・朝/𪓙小韻
+    "⿱士軍": "𨌗",  # 卷四・至韻・喟小韻
+    "⿱艹尐": "𢘿",  # 卷二・戈韻・莎小韻
+    "⿱雨⿺辶田": "䢮",  # 卷五・錫韻・荻小韻
+    "⿱食芖": "𩛛",  # 卷一・之韻・飴小韻
+    "⿱髟⿹戈隹": "𩯰",  # 卷四・祭韻・祭小韻
+    "⿱鼓釜": "䥢",  # 卷一・冬韻・䃧小韻
+    "⿱𦫶廾": "𦭺",  # 卷二・幽韻・樛小韻
+    "⿲王目义": "瑖",  # 卷四・換韻・鍛小韻
+    "⿳亠圍乂": "𠆎",  # 卷一・微韻・幃小韻
+    "⿳日八寸": "䙷",  # 卷四・代韻・礙小韻
+    "⿳栒一八": "𣕍",  # 卷三・準韻・筍小韻
+    "⿹𠄎夕": "夃",  # 卷一・模韻・孤小韻；卷三・姥韻・古小韻
+}
 
 
 @dataclass(frozen=True)
@@ -171,11 +214,18 @@ def clean_text(value: str | None) -> str:
 
 
 def normalized_character(value: str) -> str:
-    return clean_text(value).lstrip(EDITORIAL_MARKS)
+    normalized = clean_text(value).lstrip(EDITORIAL_MARKS)
+    return CHARACTER_CORRECTIONS.get(normalized, normalized)
+
+
+def corrected_characters(value: str) -> str:
+    for source, target in CHARACTER_CORRECTIONS.items():
+        value = value.replace(source, target)
+    return value
 
 
 def direct_text(node: ET.Element) -> str:
-    return normalized_character(node.text or "")
+    return clean_text(node.text).lstrip(EDITORIAL_MARKS)
 
 
 def corrected_text(node: ET.Element | None) -> str:
@@ -199,18 +249,28 @@ def corrected_text(node: ET.Element | None) -> str:
             parts.append(corrected_text(child))
         if child.tail:
             parts.append(child.tail)
-    return clean_text("".join(parts)).replace(EDITORIAL_MARKS, "")
+    return corrected_characters(
+        clean_text("".join(parts)).replace(EDITORIAL_MARKS, "")
+    )
 
 
 def entry_form(node: ET.Element) -> EntryForm:
     original_word = node.find("original_word")
     if original_word is None:
-        character = direct_text(node)
-        return EntryForm(character=character, original_character=None)
+        original = direct_text(node)
+        character = normalized_character(original)
+        return EntryForm(
+            character=character,
+            original_character=original if original and original != character else None,
+        )
 
     original = direct_text(original_word)
     rewrite = original_word.find("rewrite_word")
-    character = normalized_character(corrected_text(rewrite)) if rewrite is not None else original
+    character = (
+        normalized_character(corrected_text(rewrite))
+        if rewrite is not None
+        else normalized_character(original)
+    )
     return EntryForm(
         character=character,
         original_character=original if original and original != character else None,
@@ -392,6 +452,7 @@ def create_database(
                 zip(rhymes, catalog, strict=True), start=1
             ):
                 rhyme_global_order += 1
+                rhyme_source_id = rhyme.attrib["id"]
                 cursor = connection.execute(
                     """
                     INSERT INTO rhymes
@@ -401,8 +462,8 @@ def create_database(
                     """,
                     (
                         volume_id,
-                        rhyme.attrib["id"],
-                        catalog_row["name"],
+                        rhyme_source_id,
+                        RHYME_NAME_CORRECTIONS.get(rhyme_source_id, catalog_row["name"]),
                         clean_text(rhyme.findtext("rhyme_num")),
                         catalog_row["fanqie"],
                         catalog_row["note"],
