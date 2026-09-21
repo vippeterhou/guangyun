@@ -20,15 +20,18 @@ a {
 }
 
 .page-shell {
+  position: relative;
   width: min(920px, calc(100% - 32px));
   margin: 0 auto;
   padding: 72px 0 40px;
 }
 
 .utility-nav {
+  position: absolute;
+  top: 28px;
+  right: 0;
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 24px;
   font-size: 0.825rem;
 }
 
@@ -306,6 +309,10 @@ footer p {
 @media (max-width: 640px) {
   .page-shell {
     padding-top: 40px;
+  }
+
+  .utility-nav {
+    top: 0;
   }
 
   .search-row {

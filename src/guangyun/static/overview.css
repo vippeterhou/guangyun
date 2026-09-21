@@ -20,16 +20,19 @@ a {
 }
 
 .overview-shell {
+  position: relative;
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 40px 0 48px;
+  padding: 72px 0 48px;
 }
 
 .overview-nav {
+  position: absolute;
+  top: 28px;
+  right: 0;
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 56px;
-  font-size: 0.875rem;
+  font-size: 0.825rem;
 }
 
 .overview-nav a {
@@ -49,13 +52,17 @@ a {
 .eyebrow,
 .section-number {
   color: var(--cp-accent);
-  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+}
+
+.section-number {
+  font-size: 0.8rem;
 }
 
 h1,
@@ -67,9 +74,9 @@ h2,
 
 h1 {
   margin: 0;
-  font-size: clamp(3rem, 10vw, 6.5rem);
+  font-size: clamp(2.6rem, 9vw, 5.5rem);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   line-height: 1;
 }
 
@@ -682,11 +689,11 @@ footer p {
 
 @media (max-width: 680px) {
   .overview-shell {
-    padding-top: 28px;
+    padding-top: 40px;
   }
 
   .overview-nav {
-    margin-bottom: 36px;
+    top: 0;
   }
 
   .overview-section {
