@@ -199,7 +199,7 @@ def corrected_text(node: ET.Element | None) -> str:
             parts.append(corrected_text(child))
         if child.tail:
             parts.append(child.tail)
-    return clean_text("".join(parts))
+    return clean_text("".join(parts)).replace(EDITORIAL_MARKS, "")
 
 
 def entry_form(node: ET.Element) -> EntryForm:

@@ -17,6 +17,19 @@ def test_expected_source_counts(database_file: Path) -> None:
         connection.close()
 
 
+def test_variation_indicator_is_hidden_from_plain_text(database_file: Path) -> None:
+    connection = sqlite3.connect(database_file)
+    try:
+        definition_text, definition_xml = connection.execute(
+            "SELECT definition_text, definition_xml FROM entries WHERE character = '東' LIMIT 1"
+        ).fetchone()
+        assert "〾" not in definition_text
+        assert "春方也說文曰" in definition_text
+        assert "〾" in definition_xml
+    finally:
+        connection.close()
+
+
 def test_simplified_to_traditional_aliases(database_file: Path) -> None:
     connection = sqlite3.connect(database_file)
     try:

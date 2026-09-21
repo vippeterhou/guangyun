@@ -15,6 +15,8 @@ def test_character_lookup(client) -> None:
     assert first["small_rhyme"]["fanqie"] == "德紅切"
     assert first["rhyme"]["name"] == "東"
     assert first["volume"]["order"] == 1
+    assert "〾" not in first["definition"]
+    assert "春方也說文曰" in first["definition"]
 
 
 def test_simplified_character_lookup(client) -> None:
