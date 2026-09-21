@@ -227,9 +227,10 @@ function applyRhymeLayout(animate = true) {
         { transform: "none", transformOrigin: "top left" },
       ],
       {
-        duration: 680,
-        delay: Math.min(index * 4, 220),
+        duration: 880,
+        delay: Math.min(index * 5, 280),
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "backwards",
       },
     );
   });

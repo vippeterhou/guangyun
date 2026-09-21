@@ -225,6 +225,7 @@ h1 {
 .rhyme-map.is-tone-layout {
   min-width: calc((var(--rhyme-cube-size) * 4) + 18px);
   grid-template-columns: repeat(4, var(--rhyme-cube-size));
+  grid-template-rows: 48px;
   grid-auto-rows: var(--rhyme-cube-size);
 }
 
@@ -351,11 +352,10 @@ h1 {
   color: var(--cp-text-soft);
   opacity: 0;
   text-align: center;
-  transition: opacity 220ms ease 420ms;
 }
 
 .rhyme-map.is-tone-layout .tone-layout-placeholder {
-  opacity: 1;
+  animation: tone-placeholder-in 360ms ease 620ms both;
 }
 
 .tone-layout-placeholder.is-merged {
@@ -366,6 +366,16 @@ h1 {
   display: block;
   font-size: 0.78rem;
   line-height: 1.6;
+}
+
+@keyframes tone-placeholder-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .hierarchy-layout,
@@ -772,7 +782,8 @@ footer p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tone-layout-placeholder {
-    transition: none;
+  .rhyme-map.is-tone-layout .tone-layout-placeholder {
+    opacity: 1;
+    animation: none;
   }
 }
