@@ -29,6 +29,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function formatVolume(order) {
+  return `卷${chineseVolumeNumbers[order] ?? order}`;
+}
+
 function wasedaImageUrl(volume, page) {
   const volumeToken = String(volume).padStart(4, "0");
   const pageToken = String(page).padStart(4, "0");
@@ -147,7 +151,7 @@ function renderEntry(entry, scansExpanded) {
       <div class="result-character">${escapeHtml(entry.character)}</div>
       <div>
         <div class="result-meta">
-          <span class="tag">第${escapeHtml(entry.volume.order)}卷</span>
+          <span class="tag">${formatVolume(entry.volume.order)}</span>
           <span class="tag">${escapeHtml(entry.volume.tone)}聲</span>
           <span class="tag">${escapeHtml(entry.rhyme.name)}韻</span>
           <span class="tag">${escapeHtml(entry.small_rhyme.head_character)}小韻</span>

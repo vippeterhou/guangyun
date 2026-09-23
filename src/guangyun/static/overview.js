@@ -19,6 +19,13 @@ const overviewToc = document.querySelector("#overview-toc");
 const overviewTocLinks = [...document.querySelectorAll("[data-overview-toc]")];
 const overviewSections = [...document.querySelectorAll("[data-overview-section]")];
 const networkWheelZoomSensitivity = 0.0015;
+const chineseVolumeNumbers = {
+  1: "一",
+  2: "二",
+  3: "三",
+  4: "四",
+  5: "五",
+};
 let overviewTocFrame = null;
 let activeOverviewTocIndex = -1;
 
@@ -27,6 +34,8 @@ const state = {
   rhymeLayout: "source",
   selectedVolumeId: null,
   selectedRhymeId: null,
+  selectedSmallRhymeId: null,
+  hierarchyEntries: new Map(),
   network: null,
   visibleNetwork: { nodes: [], edges: [] },
   networkPositions: [],
@@ -55,6 +64,10 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("zh-Hant").format(value);
+}
+
+function formatVolume(order) {
+  return `卷${chineseVolumeNumbers[order] ?? order}`;
 }
 
 function updateOverviewToc() {
@@ -158,7 +171,7 @@ function renderVolumeRibbons() {
         .join("");
       return `
         <div class="volume-ribbon">
-          <div class="volume-title">第${volume.order}卷 · ${escapeHtml(volume.tone)}聲</div>
+          <div class="volume-title">${formatVolume(volume.order)} · ${escapeHtml(volume.tone)}聲</div>
           <div class="ribbon-track">${segments}</div>
           <div class="volume-summary">${volume.rhyme_count} 韻 · ${formatNumber(volume.entry_count)} 字條</div>
         </div>
@@ -322,7 +335,7 @@ function renderVolumeChoices() {
           class="choice-button ${volume.id === state.selectedVolumeId ? "is-active" : ""}"
           data-volume-id="${volume.id}"
         >
-          <span>第${volume.order}卷 · ${escapeHtml(volume.tone)}聲</span>
+          <span>${formatVolume(volume.order)} · ${escapeHtml(volume.tone)}聲</span>
           <span class="choice-meta">${volume.rhyme_count} 韻</span>
         </button>
       `,
@@ -366,6 +379,38 @@ function scrollSelectedRhymeChoice(behavior) {
   });
 }
 
+function renderHierarchyHeading(path) {
+  return `
+    <div class="hierarchy-selection-heading">
+      <h3 id="hierarchy-selection-path">${escapeHtml(path)}</h3>
+    </div>
+  `;
+}
+
+function selectVolume(volumeId) {
+  const volume = state.overview.volumes.find((item) => item.id === volumeId);
+  if (!volume) {
+    return;
+  }
+  state.selectedVolumeId = volumeId;
+  state.selectedRhymeId = null;
+  state.selectedSmallRhymeId = null;
+  state.hierarchyEntries.clear();
+  renderVolumeChoices();
+  renderRhymeChoices();
+  document.querySelector("#small-rhyme-list").innerHTML =
+    '<p class="placeholder">選擇一個韻查看小韻。</p>';
+  document.querySelector("#hierarchy-detail").innerHTML = `
+    ${renderHierarchyHeading(`${formatVolume(volume.order)} · ${volume.tone}聲`)}
+    <div class="detail-meta">
+      <span class="detail-tag">${volume.rhyme_count} 韻</span>
+      <span class="detail-tag">${volume.small_rhyme_count} 小韻</span>
+      <span class="detail-tag">${formatNumber(volume.entry_count)} 字條</span>
+    </div>
+    <p class="placeholder">選擇一個韻，可繼續查看其中的小韻與字條。</p>
+  `;
+}
+
 async function selectRhyme(rhymeId, scrollToHierarchy = false) {
   const rhyme = state.overview.rhymes.find((item) => item.id === rhymeId);
   if (!rhyme) {
@@ -373,11 +418,16 @@ async function selectRhyme(rhymeId, scrollToHierarchy = false) {
   }
   state.selectedVolumeId = rhyme.volume_id;
   state.selectedRhymeId = rhyme.id;
+  state.selectedSmallRhymeId = null;
+  state.hierarchyEntries.clear();
   renderVolumeChoices();
   renderRhymeChoices();
   document.querySelector("#small-rhyme-list").innerHTML =
     '<p class="placeholder">正在載入小韻……</p>';
   const detail = await fetchJson(`/api/v1/rhymes/${rhyme.id}`);
+  if (state.selectedRhymeId !== rhyme.id) {
+    return;
+  }
   document.querySelector("#small-rhyme-list").innerHTML = detail.small_rhymes
     .map(
       (smallRhyme) => `
@@ -392,10 +442,10 @@ async function selectRhyme(rhymeId, scrollToHierarchy = false) {
       `,
     )
     .join("");
+  const volume = state.overview.volumes.find((item) => item.id === rhyme.volume_id);
   document.querySelector("#hierarchy-detail").innerHTML = `
-    <h3>${escapeHtml(detail.name)}韻</h3>
+    ${renderHierarchyHeading(`${formatVolume(volume.order)} · ${volume.tone}聲 · ${detail.name}韻`)}
     <div class="detail-meta">
-      <span class="detail-tag">${escapeHtml(detail.tone)}聲</span>
       <span class="detail-tag">${detail.small_rhyme_count} 小韻</span>
       <span class="detail-tag">${detail.entry_count} 字條</span>
     </div>
@@ -411,27 +461,84 @@ async function selectRhyme(rhymeId, scrollToHierarchy = false) {
 }
 
 async function selectSmallRhyme(smallRhymeId) {
+  state.selectedSmallRhymeId = smallRhymeId;
   document.querySelectorAll("[data-small-rhyme-id]").forEach((button) => {
     button.classList.toggle("is-active", Number(button.dataset.smallRhymeId) === smallRhymeId);
   });
   const detail = await fetchJson(`/api/v1/small-rhymes/${smallRhymeId}`);
+  if (state.selectedSmallRhymeId !== smallRhymeId) {
+    return;
+  }
+  state.hierarchyEntries = new Map(detail.entries.map((entry) => [entry.id, entry]));
   const characters = detail.entries
     .map(
       (entry) =>
-        `<a href="/?char=${encodeURIComponent(entry.character)}" title="在查詢中打開">${escapeHtml(entry.character)}</a>`,
+        `<button
+          type="button"
+          data-hierarchy-entry-id="${entry.id}"
+          aria-pressed="false"
+        >${escapeHtml(entry.character)}</button>`,
     )
     .join("");
   document.querySelector("#hierarchy-detail").innerHTML = `
-    <h3>${escapeHtml(detail.head_character)}</h3>
+    ${renderHierarchyHeading(
+      `${formatVolume(detail.volume.order)} · ${detail.volume.tone}聲 · ` +
+      `${detail.rhyme.name}韻 · ${detail.head_character}小韻`,
+    )}
     <div class="detail-meta">
       <span class="detail-tag">${escapeHtml(detail.fanqie)}</span>
-      <span class="detail-tag">${escapeHtml(detail.rhyme.name)}韻</span>
-      ${detail.ipa ? `<span class="detail-tag">${escapeHtml(detail.ipa)}</span>` : ""}
       <span class="detail-tag">${detail.entries.length} 字</span>
     </div>
-    <p class="placeholder">點擊任一字，可返回主要查詢查看完整釋義。</p>
+    <p class="placeholder">點擊任一字，可在此查看其釋義。</p>
     <div class="character-cloud">${characters}</div>
+    <div id="hierarchy-character-detail" class="hierarchy-character-detail" hidden></div>
   `;
+}
+
+function renderHierarchyCharacterEntry(entry) {
+  return `
+    <article class="inline-character-entry">
+    <h4>${escapeHtml(entry.character)}</h4>
+    <div class="inline-entry-meta">
+      <span class="detail-tag">${formatVolume(entry.volume.order)}</span>
+      <span class="detail-tag">${escapeHtml(entry.volume.tone)}聲</span>
+      <span class="detail-tag">${escapeHtml(entry.rhyme.name)}韻</span>
+      <span class="detail-tag">${escapeHtml(entry.small_rhyme.head_character)}小韻</span>
+      <span class="detail-tag">${escapeHtml(entry.small_rhyme.fanqie)}</span>
+      ${entry.small_rhyme.ipa ? `<span class="detail-tag">${escapeHtml(entry.small_rhyme.ipa)}</span>` : ""}
+    </div>
+    <p class="inline-entry-definition">${escapeHtml(entry.definition || "原書無注文")}</p>
+    ${entry.original_character
+      ? `<p class="inline-entry-original">原字形：${escapeHtml(entry.original_character)}</p>`
+      : ""}
+    </article>
+  `;
+}
+
+function selectHierarchyCharacter(entryId) {
+  const entry = state.hierarchyEntries.get(entryId);
+  if (!entry) {
+    return;
+  }
+  document.querySelectorAll("[data-hierarchy-entry-id]").forEach((button) => {
+    const active = Number(button.dataset.hierarchyEntryId) === entryId;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelector("#hierarchy-selection-path").textContent =
+    `${formatVolume(entry.volume.order)} · ${entry.volume.tone}聲 · ${entry.rhyme.name}韻 · ` +
+    `${entry.small_rhyme.head_character}小韻`;
+  const container = document.querySelector("#hierarchy-character-detail");
+  container.hidden = false;
+  container.innerHTML = `
+    ${renderHierarchyCharacterEntry(entry)}
+  `;
+  if (window.innerWidth <= 680) {
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    container.scrollIntoView({ behavior, block: "start" });
+  }
 }
 
 function renderProfile() {
@@ -1122,10 +1229,7 @@ function bindPageSelectionEvents() {
   document.addEventListener("click", async (event) => {
     const volumeButton = event.target.closest("[data-volume-id]");
     if (volumeButton) {
-      state.selectedVolumeId = Number(volumeButton.dataset.volumeId);
-      const firstRhyme = rhymesForVolume(state.selectedVolumeId)[0];
-      renderVolumeChoices();
-      await selectRhyme(firstRhyme.id);
+      selectVolume(Number(volumeButton.dataset.volumeId));
       return;
     }
     const rhymeButton = event.target.closest("[data-rhyme-id]");
@@ -1145,6 +1249,11 @@ function bindPageSelectionEvents() {
     const smallRhymeButton = event.target.closest("[data-small-rhyme-id]");
     if (smallRhymeButton) {
       await selectSmallRhyme(Number(smallRhymeButton.dataset.smallRhymeId));
+      return;
+    }
+    const characterButton = event.target.closest("[data-hierarchy-entry-id]");
+    if (characterButton) {
+      selectHierarchyCharacter(Number(characterButton.dataset.hierarchyEntryId));
       return;
     }
     const depthButton = event.target.closest("[data-network-depth]");
@@ -1474,9 +1583,7 @@ async function initialize() {
     renderVolumeRibbons();
     renderRhymeMap();
     renderProfile();
-    state.selectedVolumeId = state.overview.volumes[0].id;
-    renderVolumeChoices();
-    await selectRhyme(rhymesForVolume(state.selectedVolumeId)[0].id);
+    selectVolume(state.overview.volumes[0].id);
     await initializeNetwork();
     statusElement.hidden = true;
     contentElement.hidden = false;

@@ -139,7 +139,7 @@ def test_home_page(client) -> None:
     assert "本站不保存或重新發布相關圖片" not in response.text
     assert 'href="/docs"' not in response.text
     assert "app.css?v=25" in response.text
-    assert "app.js?v=15" in response.text
+    assert "app.js?v=17" in response.text
 
 
 def test_overview_page(client) -> None:

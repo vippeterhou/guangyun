@@ -71,7 +71,7 @@ html[data-theme="dark"] {
   --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=37">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=45">
   </head>
   <body>
     <main class="overview-shell">
@@ -97,10 +97,10 @@ html[data-theme="dark"] {
             <span class="overview-toc-progress" aria-hidden="true"></span>
             <span class="overview-toc-indicator" aria-hidden="true"></span>
             <ol>
-              <li><a href="#overview-metrics" data-overview-toc><span>01</span>全書尺度</a></li>
+              <li><a href="#overview-metrics" data-overview-toc><span>01</span>廣韻總覽</a></li>
               <li><a href="#overview-volumes" data-overview-toc><span>02</span>五卷長卷</a></li>
               <li><a href="#overview-rhymes" data-overview-toc><span>03</span>二百零六韻</a></li>
-              <li><a href="#overview-hierarchy" data-overview-toc><span>04</span>卷韻小韻</a></li>
+              <li><a href="#overview-hierarchy" data-overview-toc><span>04</span>卷韻結構</a></li>
               <li><a href="#overview-network" data-overview-toc><span>05</span>反切網絡</a></li>
               <li><a href="#overview-profile" data-overview-toc><span>06</span>全書側寫</a></li>
             </ol>
@@ -195,7 +195,7 @@ html[data-theme="dark"] {
               </div>
             </div>
             <aside id="hierarchy-detail" class="detail-panel">
-              <p class="placeholder">選擇一個小韻查看詳情。</p>
+              <p class="placeholder">選擇一個韻查看詳情。</p>
             </aside>
           </div>
         </section>
@@ -315,6 +315,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=41" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=54" defer></script>
   </body>
 </html>
