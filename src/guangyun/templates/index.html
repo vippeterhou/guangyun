@@ -67,7 +67,7 @@ html[data-theme="dark"] {
   --cp-highlight: rgba(253, 142, 161, 0.12);
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=7">
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=24">
   </head>
   <body>
     <main class="page-shell">
@@ -96,7 +96,7 @@ html[data-theme="dark"] {
             >
             <button type="submit">查詢</button>
           </div>
-          <p id="search-hint" class="hint">每次查詢一個漢字；多音字會返回全部條目。</p>
+          <p id="search-hint" class="hint">每次查詢一個漢字。</p>
         </form>
       </section>
 
@@ -105,15 +105,20 @@ html[data-theme="dark"] {
 
       <footer>
         <p>
-          資料來源：
+          資料：
           <a href="https://github.com/cjkvi/cjkvi-dict" rel="noopener noreferrer">
             CJKVI Dictionary Database
           </a>
-          · GPL-2.0；簡繁映射：Unicode Unihan · Unicode License V3
+          （GPL-2.0） · 書影：
+          <a
+            href="https://www.wul.waseda.ac.jp/kotenseki/html/ho04/ho04_01757/index.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >早稻田大學圖書館古典籍綜合資料庫</a>
+          · 簡繁：Unicode Unihan（Unicode License V3）
         </p>
-        <p><a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/app.js') }}?v=3" defer></script>
+    <script src="{{ url_for('static', path='/app.js') }}?v=15" defer></script>
   </body>
 </html>

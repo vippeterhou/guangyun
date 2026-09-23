@@ -132,6 +132,14 @@ def test_home_page(client) -> None:
     assert "廣韻查詢" in response.text
     assert 'href="/overview"' in response.text
     assert "CJKVI Dictionary Database" in response.text
+    assert "早稻田大學圖書館古典籍綜合資料庫" in response.text
+    assert "資料：" in response.text
+    assert "書影：" in response.text
+    assert "簡繁：Unicode Unihan" in response.text
+    assert "本站不保存或重新發布相關圖片" not in response.text
+    assert 'href="/docs"' not in response.text
+    assert "app.css?v=24" in response.text
+    assert "app.js?v=15" in response.text
 
 
 def test_overview_page(client) -> None:
