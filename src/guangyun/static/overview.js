@@ -11,6 +11,10 @@ const networkFrequency = document.querySelector("#network-frequency");
 const networkFrequencyValue = document.querySelector("#network-frequency-value");
 const networkFocusControls = document.querySelector("#network-focus-controls");
 const networkFocusLabel = document.querySelector("#network-focus-label");
+const networkTouchInspector = document.querySelector("#network-touch-inspector");
+const networkTouchCharacter = document.querySelector("#network-touch-character");
+const networkTouchDetails = document.querySelector("#network-touch-details");
+const networkTouchFocus = document.querySelector("#network-touch-focus");
 const overviewToc = document.querySelector("#overview-toc");
 const overviewTocLinks = [...document.querySelectorAll("[data-overview-toc]")];
 const overviewSections = [...document.querySelectorAll("[data-overview-section]")];
@@ -35,6 +39,8 @@ const state = {
   networkPointers: new Map(),
   networkPinch: null,
   networkDragMoved: false,
+  networkPointerType: "mouse",
+  networkTouchNode: null,
   networkSearchQuery: null,
 };
 
@@ -512,6 +518,21 @@ function networkRoleLabel(node) {
   }[networkRole(node)];
 }
 
+function clearNetworkTouchPreview() {
+  state.networkTouchNode = null;
+  networkTouchInspector.hidden = true;
+}
+
+function previewNetworkTouchNode(node) {
+  state.networkTouchNode = node.id;
+  state.hoveredNetworkNode = node.id;
+  networkTouchCharacter.textContent = node.id;
+  networkTouchDetails.textContent =
+    `${networkRoleLabel(node)} · 上字 ${node.upper_count} · 下字 ${node.lower_count}`;
+  networkTouchInspector.hidden = false;
+  drawNetwork();
+}
+
 function buildAdjacency(edges) {
   const adjacency = new Map();
   edges.forEach((edge) => {
@@ -595,31 +616,108 @@ function createNetworkPositions(network) {
       });
       frontier = next;
     }
-    const rings = new Map();
-    network.nodes.forEach((node) => {
-      const distance = distances.get(node.id) ?? state.networkFocusDepth;
-      if (!rings.has(distance)) {
-        rings.set(distance, []);
-      }
-      rings.get(distance).push(node);
-    });
-    const ringStep = Math.max(90, Math.min(width, height) * 0.28);
-    return network.nodes.map((node) => {
-      const distance = distances.get(node.id) ?? state.networkFocusDepth;
-      const ring = rings.get(distance);
-      const index = ring.findIndex((item) => item.id === node.id);
-      const angle = distance === 0 ? 0 : (index / ring.length) * Math.PI * 2 - Math.PI / 2;
-      const radius = distance * ringStep;
-      return {
-        ...node,
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius,
-        radius:
-          node.id === state.networkFocusNode
-            ? 14
-            : 4 + Math.sqrt(node.count / maximum) * 9,
+    const nodeRadius = (node) =>
+      node.id === state.networkFocusNode
+        ? 14
+        : 4 + Math.sqrt(node.count / maximum) * 9;
+    const positions = [];
+    const positionsById = new Map();
+    const centerNode = network.nodes.find((node) => node.id === state.networkFocusNode);
+    if (centerNode) {
+      const positionedCenter = {
+        ...centerNode,
+        x: centerX,
+        y: centerY,
+        radius: nodeRadius(centerNode),
+        networkDepth: 0,
       };
+      positions.push(positionedCenter);
+      positionsById.set(positionedCenter.id, positionedCenter);
+    }
+
+    const placeRingBand = (nodes, startRadius, networkDepth) => {
+      if (!nodes.length) {
+        return { outerRadius: startRadius, ringSpacing: 0 };
+      }
+      const largestRadius = Math.max(...nodes.map(nodeRadius));
+      const ringSpacing = Math.max(28, largestRadius * 2 + 12);
+      let nodeIndex = 0;
+      let ringIndex = 0;
+      let outerRadius = startRadius;
+      while (nodeIndex < nodes.length) {
+        const ringRadius = startRadius + ringIndex * ringSpacing;
+        const capacity = Math.max(
+          6,
+          Math.floor((Math.PI * 2 * ringRadius) / ringSpacing),
+        );
+        const ringNodes = nodes.slice(nodeIndex, nodeIndex + capacity);
+        const angleOffset =
+          -Math.PI / 2 + (ringIndex % 2 === 0 ? 0 : Math.PI / ringNodes.length);
+        ringNodes.forEach((node, index) => {
+          const angle = angleOffset + (index / ringNodes.length) * Math.PI * 2;
+          const positionedNode = {
+            ...node,
+            x: centerX + Math.cos(angle) * ringRadius,
+            y: centerY + Math.sin(angle) * ringRadius,
+            radius: nodeRadius(node),
+            networkDepth,
+          };
+          positions.push(positionedNode);
+          positionsById.set(positionedNode.id, positionedNode);
+        });
+        nodeIndex += ringNodes.length;
+        ringIndex += 1;
+        outerRadius = ringRadius;
+      }
+      return { outerRadius, ringSpacing };
+    };
+
+    const firstDegree = network.nodes
+      .filter((node) => distances.get(node.id) === 1)
+      .sort((left, right) => right.count - left.count || left.id.localeCompare(right.id));
+    const firstBand = placeRingBand(
+      firstDegree,
+      Math.max(96, Math.min(width, height) * 0.2),
+      1,
+    );
+
+    const secondDegree = network.nodes.filter((node) => distances.get(node.id) === 2);
+    const groups = new Map(firstDegree.map((node) => [node.id, []]));
+    const ungrouped = [];
+    secondDegree.forEach((node) => {
+      const parents = [...(adjacency.get(node.id) || [])]
+        .filter((id) => distances.get(id) === 1)
+        .sort(
+          (left, right) =>
+            groups.get(left).length - groups.get(right).length
+            || left.localeCompare(right),
+        );
+      if (parents.length) {
+        groups.get(parents[0]).push(node);
+      } else {
+        ungrouped.push(node);
+      }
     });
+    const orderedParents = [...firstDegree].sort((left, right) => {
+      const leftPosition = positionsById.get(left.id);
+      const rightPosition = positionsById.get(right.id);
+      return (
+        Math.atan2(leftPosition.y - centerY, leftPosition.x - centerX)
+        - Math.atan2(rightPosition.y - centerY, rightPosition.x - centerX)
+      );
+    });
+    const orderedSecondDegree = orderedParents.flatMap((parent) =>
+      groups
+        .get(parent.id)
+        .sort((left, right) => right.count - left.count || left.id.localeCompare(right.id)),
+    );
+    orderedSecondDegree.push(...ungrouped);
+    placeRingBand(
+      orderedSecondDegree,
+      firstBand.outerRadius + Math.max(44, firstBand.ringSpacing + 20),
+      2,
+    );
+    return positions;
   }
 
   const maximumRadius = Math.max(1, Math.min(width, height) * 0.44);
@@ -719,6 +817,13 @@ function fitNetworkView() {
 
 function rebuildNetworkView() {
   state.visibleNetwork = filteredNetwork();
+  if (
+    state.networkTouchNode
+    && !state.visibleNetwork.nodes.some((node) => node.id === state.networkTouchNode)
+  ) {
+    state.hoveredNetworkNode = null;
+    clearNetworkTouchPreview();
+  }
   state.networkPositions = createNetworkPositions(state.visibleNetwork);
   updateNetworkSummary();
   updateNetworkFocusControls();
@@ -854,12 +959,15 @@ function drawNetwork() {
       screenX < bounds.width + 30 &&
       screenY > -30 &&
       screenY < bounds.height + 30;
-    const showLabel =
-      visible &&
-      (state.networkFocusNode ||
-        (highlightedId && related) ||
-        node.id === highlightedId ||
-        state.networkTransform.scale >= labelThreshold);
+    const showFocusedLabel =
+      state.networkFocusNode
+      && (node.networkDepth <= 1 || node.id === state.hoveredNetworkNode);
+    const showGlobalLabel =
+      !state.networkFocusNode
+      && ((highlightedId && related)
+        || node.id === highlightedId
+        || state.networkTransform.scale >= labelThreshold);
+    const showLabel = visible && (showFocusedLabel || showGlobalLabel);
     if (showLabel) {
       context.globalAlpha = 1;
       context.fillStyle = cssColor("--cp-text");
@@ -880,20 +988,26 @@ function drawNetwork() {
   context.restore();
 }
 
-function networkNodeAt(x, y) {
+function networkNodeAt(x, y, minimumScreenRadius = 8) {
   const worldX = (x - state.networkTransform.x) / state.networkTransform.scale;
   const worldY = (y - state.networkTransform.y) / state.networkTransform.scale;
-  let closest = null;
-  let closestDistance = Infinity;
+  let directHit = null;
+  let directDistance = Infinity;
+  let nearbyHit = null;
+  let nearbyDistance = Infinity;
   for (const node of state.networkPositions) {
     const distance = Math.hypot(node.x - worldX, node.y - worldY);
-    const hitRadius = Math.max(8 / state.networkTransform.scale, node.radius + 3);
-    if (distance <= hitRadius && distance < closestDistance) {
-      closest = node;
-      closestDistance = distance;
+    if (distance <= node.radius + 3 && distance < directDistance) {
+      directHit = node;
+      directDistance = distance;
+    }
+    const nearbyRadius = minimumScreenRadius / state.networkTransform.scale;
+    if (distance <= nearbyRadius && distance < nearbyDistance) {
+      nearbyHit = node;
+      nearbyDistance = distance;
     }
   }
-  return closest;
+  return directHit ?? nearbyHit;
 }
 
 async function initializeNetwork() {
@@ -929,9 +1043,18 @@ function focusNetworkNode(nodeId) {
   if (!node) {
     return;
   }
+  clearNetworkTouchPreview();
   state.hoveredNetworkNode = null;
   state.networkFocusNode = node.id;
   state.networkFocusDepth = 1;
+  rebuildNetworkView();
+}
+
+function returnToGlobalNetwork() {
+  tooltip.hidden = true;
+  clearNetworkTouchPreview();
+  state.networkFocusNode = null;
+  state.hoveredNetworkNode = null;
   rebuildNetworkView();
 }
 
@@ -1125,15 +1248,23 @@ function bindNetworkControlEvents() {
     resetNetworkTransform();
     drawNetwork();
   });
-  document.querySelector("#network-return-global").addEventListener("click", () => {
-    state.networkFocusNode = null;
-    state.hoveredNetworkNode = null;
-    rebuildNetworkView();
+  document.querySelector("#network-return-global").addEventListener("click", returnToGlobalNetwork);
+
+  networkTouchFocus.addEventListener("click", () => {
+    if (state.networkTouchNode) {
+      focusNetworkNode(state.networkTouchNode);
+    }
   });
 }
 
 function bindNetworkCanvasEvents() {
   canvas.addEventListener("pointerdown", (event) => {
+    state.networkPointerType = event.pointerType || "mouse";
+    if (state.networkPointerType === "mouse" && state.networkTouchNode) {
+      state.hoveredNetworkNode = null;
+      clearNetworkTouchPreview();
+      drawNetwork();
+    }
     canvas.setPointerCapture(event.pointerId);
     state.networkPointers.set(event.pointerId, {
       pointerId: event.pointerId,
@@ -1226,7 +1357,10 @@ function bindNetworkCanvasEvents() {
   canvas.addEventListener("pointerup", endNetworkPointer);
   canvas.addEventListener("pointercancel", endNetworkPointer);
 
-  canvas.addEventListener("pointerleave", () => {
+  canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType && event.pointerType !== "mouse") {
+      return;
+    }
     tooltip.hidden = true;
     state.hoveredNetworkNode = null;
     canvas.style.cursor = "";
@@ -1241,9 +1375,38 @@ function bindNetworkCanvasEvents() {
       return;
     }
     const bounds = canvas.getBoundingClientRect();
-    const node = networkNodeAt(event.clientX - bounds.left, event.clientY - bounds.top);
+    const touchInteraction = state.networkPointerType !== "mouse";
+    const node = networkNodeAt(
+      event.clientX - bounds.left,
+      event.clientY - bounds.top,
+      touchInteraction ? 14 : 8,
+    );
+    if (touchInteraction) {
+      tooltip.hidden = true;
+      if (node) {
+        previewNetworkTouchNode(node);
+      } else {
+        state.hoveredNetworkNode = null;
+        clearNetworkTouchPreview();
+        drawNetwork();
+      }
+      return;
+    }
     if (node) {
       focusNetworkNode(node.id);
+    }
+  });
+
+  canvas.addEventListener("dblclick", (event) => {
+    const supportsDesktopHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    if (!supportsDesktopHover || !state.networkFocusNode) {
+      return;
+    }
+    const bounds = canvas.getBoundingClientRect();
+    const node = networkNodeAt(event.clientX - bounds.left, event.clientY - bounds.top);
+    if (!node) {
+      event.preventDefault();
+      returnToGlobalNetwork();
     }
   });
 

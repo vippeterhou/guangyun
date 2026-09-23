@@ -71,7 +71,7 @@ html[data-theme="dark"] {
   --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=33">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=37">
   </head>
   <body>
     <main class="overview-shell">
@@ -116,7 +116,7 @@ html[data-theme="dark"] {
           <div class="section-heading">
             <p class="section-number">01</p>
             <div>
-              <h2 id="metrics-title">一眼看懂《廣韻》</h2>
+              <h2 id="metrics-title">廣韻總覽</h2>
               <p>從五卷到字條，先看全書的基本尺度。</p>
             </div>
           </div>
@@ -175,7 +175,7 @@ html[data-theme="dark"] {
           <div class="section-heading">
             <p class="section-number">04</p>
             <div>
-              <h2 id="hierarchy-title">從卷走到字</h2>
+              <h2 id="hierarchy-title">卷韻結構</h2>
               <p>依次選擇卷、韻與小韻，在原位查看同音字，不離開總覽。</p>
             </div>
           </div>
@@ -210,7 +210,7 @@ html[data-theme="dark"] {
             <p class="section-number">05</p>
             <div>
               <h2 id="network-title">反切網絡</h2>
-              <p>箭頭由反切上字指向下字；可按使用次數篩選，或點擊節點查看一度、二度關係。</p>
+              <p>箭頭由反切上字指向下字；可按使用次數篩選，並點選節點查看資訊及一度、二度關係。</p>
             </div>
           </div>
           <div class="network-toolbar">
@@ -260,6 +260,18 @@ html[data-theme="dark"] {
               <canvas id="fanqie-canvas" aria-label="反切關係網絡" tabindex="0"></canvas>
               <div id="network-tooltip" class="network-tooltip" hidden></div>
             </div>
+            <div
+              id="network-touch-inspector"
+              class="network-touch-inspector"
+              aria-live="polite"
+              hidden
+            >
+              <div>
+                <strong id="network-touch-character"></strong>
+                <span id="network-touch-details"></span>
+              </div>
+              <button id="network-touch-focus" type="button">查看關係</button>
+            </div>
           </div>
         </section>
 
@@ -303,6 +315,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=37" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=41" defer></script>
   </body>
 </html>

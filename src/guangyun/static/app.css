@@ -26,7 +26,7 @@ a {
   width: min(920px, calc(100% - 32px));
   min-height: 100vh;
   margin: 0 auto;
-  padding: 72px 0 40px;
+  padding: 72px 0 20px;
 }
 
 .utility-nav {
@@ -412,7 +412,7 @@ footer {
 
 footer {
   margin-top: auto;
-  padding-top: 24px;
+  padding-top: 12px;
   border-top: 1px solid var(--cp-border);
   font-size: 0.72rem;
 }
