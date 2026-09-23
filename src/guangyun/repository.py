@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections import Counter
+from itertools import product
 from typing import Any
 
 ENTRY_SELECT = """
@@ -39,6 +40,14 @@ JOIN small_rhymes sr ON sr.id = e.small_rhyme_id
 JOIN rhymes r ON r.id = sr.rhyme_id
 JOIN volumes v ON v.id = r.volume_id
 """
+
+CHINESE_VOLUME_NUMBERS = {
+    1: "一",
+    2: "二",
+    3: "三",
+    4: "四",
+    5: "五",
+}
 
 TONE_CORRESPONDENCE_INDEXES = (
     (1, 1, 1, 1),
@@ -187,6 +196,29 @@ def character_aliases(connection: sqlite3.Connection, character: str) -> list[di
     return [dict(row) for row in rows]
 
 
+def _hierarchy_search_terms(connection: sqlite3.Connection, query: str) -> list[str]:
+    character_choices = []
+    for character in query:
+        aliases = character_aliases(connection, character)
+        character_choices.append(
+            list(
+                dict.fromkeys(
+                    [
+                        character,
+                        *(item["target_character"] for item in aliases),
+                    ]
+                )
+            )
+        )
+
+    terms = []
+    for characters in product(*character_choices):
+        terms.append("".join(characters))
+        if len(terms) == 32:
+            break
+    return terms
+
+
 def entries_for_character(
     connection: sqlite3.Connection, character: str
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -197,7 +229,7 @@ def entries_for_character(
         ENTRY_SELECT
         + f"""
         WHERE e.character IN ({placeholders}) OR e.original_character IN ({placeholders})
-        ORDER BY v.sort_order, r.sort_order, sr.sort_order, e.sort_order
+        ORDER BY e.is_added, v.sort_order, r.sort_order, sr.sort_order, e.sort_order
         """,
         (*candidates, *candidates),
     ).fetchall()
@@ -222,7 +254,7 @@ def small_rhyme_by_id(connection: sqlite3.Connection, small_rhyme_id: int) -> di
     rows = connection.execute(
         ENTRY_SELECT
         + """
-        WHERE sr.id = ?
+        WHERE sr.id = ? AND e.is_added = 0
         ORDER BY e.sort_order
         """,
         (small_rhyme_id,),
@@ -269,7 +301,7 @@ def list_rhymes(
         FROM rhymes r
         JOIN volumes v ON v.id = r.volume_id
         LEFT JOIN small_rhymes sr ON sr.rhyme_id = r.id
-        LEFT JOIN entries e ON e.small_rhyme_id = sr.id
+        LEFT JOIN entries e ON e.small_rhyme_id = sr.id AND e.is_added = 0
         {where}
         GROUP BY r.id
         ORDER BY v.sort_order, r.sort_order
@@ -363,7 +395,7 @@ def overview_summary(connection: sqlite3.Connection) -> dict[str, Any]:
             FROM volumes v
             LEFT JOIN rhymes r ON r.volume_id = v.id
             LEFT JOIN small_rhymes sr ON sr.rhyme_id = r.id
-            LEFT JOIN entries e ON e.small_rhyme_id = sr.id
+            LEFT JOIN entries e ON e.small_rhyme_id = sr.id AND e.is_added = 0
             GROUP BY v.id
             ORDER BY v.sort_order
             """
@@ -376,20 +408,23 @@ def overview_summary(connection: sqlite3.Connection) -> dict[str, Any]:
             (SELECT COUNT(*) FROM volumes) AS volumes,
             (SELECT COUNT(*) FROM rhymes) AS rhymes,
             (SELECT COUNT(*) FROM small_rhymes) AS small_rhymes,
-            (SELECT COUNT(*) FROM entries) AS entries
+            (SELECT COUNT(*) FROM entries WHERE is_added = 0) AS entries
         """
     ).fetchone()
     profile = connection.execute(
         """
         SELECT
             SUM(is_added) AS added_entries,
-            SUM(original_character IS NOT NULL) AS corrected_headwords,
-            SUM(INSTR(definition_xml, '〾') > 0) AS glyph_variant_entries,
-            SUM(INSTR(definition_text, '？') > 0) AS unresolved_definition_entries
+            SUM(original_character IS NOT NULL AND is_added = 0) AS corrected_headwords,
+            SUM(INSTR(definition_xml, '〾') > 0 AND is_added = 0) AS glyph_variant_entries,
+            SUM(INSTR(definition_text, '？') > 0 AND is_added = 0)
+                AS unresolved_definition_entries
         FROM entries
         """
     ).fetchone()
-    characters = connection.execute("SELECT character FROM entries").fetchall()
+    characters = connection.execute(
+        "SELECT character FROM entries WHERE is_added = 0"
+    ).fetchall()
     ids_headwords = sum(
         any(0x2FF0 <= ord(character) <= 0x2FFF for character in row["character"])
         for row in characters
@@ -416,7 +451,7 @@ def overview_summary(connection: sqlite3.Connection) -> dict[str, Any]:
             FROM small_rhymes sr
             JOIN rhymes r ON r.id = sr.rhyme_id
             JOIN volumes v ON v.id = r.volume_id
-            JOIN entries e ON e.small_rhyme_id = sr.id
+            JOIN entries e ON e.small_rhyme_id = sr.id AND e.is_added = 0
             GROUP BY sr.id
             ORDER BY entry_count DESC, v.sort_order, r.sort_order, sr.sort_order
             LIMIT 10
@@ -468,6 +503,200 @@ def overview_summary(connection: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def _hierarchy_contains_any(column: str, term_count: int) -> str:
+    return "(" + " OR ".join(f"INSTR({column}, ?) > 0" for _ in range(term_count)) + ")"
+
+
+def _hierarchy_path(volume_order: int, tone: str, *segments: str) -> str:
+    return " · ".join(
+        [f"卷{CHINESE_VOLUME_NUMBERS[volume_order]}", f"{tone}聲", *segments]
+    )
+
+
+def _search_hierarchy_volumes(
+    connection: sqlite3.Connection, search_terms: list[str], limit: int
+) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, title, tone, sort_order AS "order"
+        FROM volumes
+        ORDER BY sort_order
+        """
+    ).fetchall()
+    results = []
+    for row in rows:
+        label = _hierarchy_path(row["order"], row["tone"])
+        if any(
+            term in value
+            for term in search_terms
+            for value in (label, row["title"], row["tone"])
+        ):
+            results.append(
+                {
+                    "level": "volume",
+                    "label": label,
+                    "path": label,
+                    "volume_id": row["id"],
+                }
+            )
+    return results[:limit]
+
+
+def _search_hierarchy_rhymes(
+    connection: sqlite3.Connection, search_terms: list[str], limit: int
+) -> list[dict[str, Any]]:
+    term_count = len(search_terms)
+    placeholders = ", ".join("?" for _ in search_terms)
+    rows = connection.execute(
+        f"""
+        SELECT r.id, r.name, r.catalog_fanqie, r.catalog_note,
+               v.id AS volume_id, v.tone, v.sort_order AS volume_order
+        FROM rhymes r
+        JOIN volumes v ON v.id = r.volume_id
+        WHERE {_hierarchy_contains_any("r.name", term_count)}
+           OR {_hierarchy_contains_any("COALESCE(r.catalog_fanqie, '')", term_count)}
+           OR {_hierarchy_contains_any("COALESCE(r.catalog_note, '')", term_count)}
+        ORDER BY
+            CASE WHEN r.name IN ({placeholders}) THEN 0 ELSE 1 END,
+            v.sort_order, r.sort_order
+        LIMIT ?
+        """,
+        (*search_terms, *search_terms, *search_terms, *search_terms, limit),
+    ).fetchall()
+    return [
+        {
+            "level": "rhyme",
+            "label": f"{row['name']}韻",
+            "path": _hierarchy_path(
+                row["volume_order"], row["tone"], f"{row['name']}韻"
+            ),
+            "volume_id": row["volume_id"],
+            "rhyme_id": row["id"],
+        }
+        for row in rows
+    ]
+
+
+def _search_hierarchy_small_rhymes(
+    connection: sqlite3.Connection, search_terms: list[str], limit: int
+) -> list[dict[str, Any]]:
+    term_count = len(search_terms)
+    placeholders = ", ".join("?" for _ in search_terms)
+    rows = connection.execute(
+        f"""
+        SELECT sr.id, sr.head_character, sr.primary_fanqie, sr.ipa, sr.onyomi,
+               r.id AS rhyme_id, r.name AS rhyme_name,
+               v.id AS volume_id, v.tone, v.sort_order AS volume_order
+        FROM small_rhymes sr
+        JOIN rhymes r ON r.id = sr.rhyme_id
+        JOIN volumes v ON v.id = r.volume_id
+        WHERE {_hierarchy_contains_any("sr.head_character", term_count)}
+           OR {_hierarchy_contains_any("sr.primary_fanqie", term_count)}
+           OR {_hierarchy_contains_any("COALESCE(sr.ipa, '')", term_count)}
+           OR {_hierarchy_contains_any("COALESCE(sr.onyomi, '')", term_count)}
+        ORDER BY
+            CASE
+                WHEN sr.head_character IN ({placeholders}) THEN 0
+                WHEN sr.primary_fanqie IN ({placeholders}) THEN 1
+                ELSE 2
+            END,
+            v.sort_order, r.sort_order, sr.sort_order
+        LIMIT ?
+        """,
+        (
+            *search_terms,
+            *search_terms,
+            *search_terms,
+            *search_terms,
+            *search_terms,
+            *search_terms,
+            limit,
+        ),
+    ).fetchall()
+    return [
+        {
+            "level": "small_rhyme",
+            "label": f"{row['head_character']}小韻 · {row['primary_fanqie']}",
+            "path": _hierarchy_path(
+                row["volume_order"],
+                row["tone"],
+                f"{row['rhyme_name']}韻",
+                f"{row['head_character']}小韻",
+            ),
+            "volume_id": row["volume_id"],
+            "rhyme_id": row["rhyme_id"],
+            "small_rhyme_id": row["id"],
+        }
+        for row in rows
+    ]
+
+
+def _search_hierarchy_entries(
+    connection: sqlite3.Connection, search_terms: list[str], limit: int
+) -> list[dict[str, Any]]:
+    term_count = len(search_terms)
+    placeholders = ", ".join("?" for _ in search_terms)
+    rows = connection.execute(
+        f"""
+        SELECT e.id, e.character, e.original_character,
+               sr.id AS small_rhyme_id, sr.head_character,
+               r.id AS rhyme_id, r.name AS rhyme_name,
+               v.id AS volume_id, v.tone, v.sort_order AS volume_order
+        FROM entries e
+        JOIN small_rhymes sr ON sr.id = e.small_rhyme_id
+        JOIN rhymes r ON r.id = sr.rhyme_id
+        JOIN volumes v ON v.id = r.volume_id
+        WHERE e.is_added = 0
+          AND (
+              {_hierarchy_contains_any("e.character", term_count)}
+              OR {_hierarchy_contains_any("COALESCE(e.original_character, '')", term_count)}
+          )
+        ORDER BY
+            CASE
+                WHEN e.character IN ({placeholders}) THEN 0
+                WHEN e.original_character IN ({placeholders}) THEN 1
+                ELSE 2
+            END,
+            v.sort_order, r.sort_order, sr.sort_order, e.sort_order
+        LIMIT ?
+        """,
+        (*search_terms, *search_terms, *search_terms, *search_terms, limit),
+    ).fetchall()
+    return [
+        {
+            "level": "entry",
+            "label": row["character"],
+            "path": _hierarchy_path(
+                row["volume_order"],
+                row["tone"],
+                f"{row['rhyme_name']}韻",
+                f"{row['head_character']}小韻",
+                row["character"],
+            ),
+            "volume_id": row["volume_id"],
+            "rhyme_id": row["rhyme_id"],
+            "small_rhyme_id": row["small_rhyme_id"],
+            "entry_id": row["id"],
+        }
+        for row in rows
+    ]
+
+
+def search_hierarchy(
+    connection: sqlite3.Connection, query: str, limit: int = 8
+) -> dict[str, list[dict[str, Any]]]:
+    query = query.strip()
+    if not query:
+        return {"volumes": [], "rhymes": [], "small_rhymes": [], "entries": []}
+    search_terms = _hierarchy_search_terms(connection, query)
+    return {
+        "volumes": _search_hierarchy_volumes(connection, search_terms, limit),
+        "rhymes": _search_hierarchy_rhymes(connection, search_terms, limit),
+        "small_rhymes": _search_hierarchy_small_rhymes(connection, search_terms, limit),
+        "entries": _search_hierarchy_entries(connection, search_terms, limit),
+    }
+
+
 def rhyme_overview(connection: sqlite3.Connection, rhyme_id: int) -> dict[str, Any] | None:
     rhyme = connection.execute(
         """
@@ -491,7 +720,7 @@ def rhyme_overview(connection: sqlite3.Connection, rhyme_id: int) -> dict[str, A
                    sr.primary_fanqie, sr.ipa, sr.onyomi, sr.homophone_count,
                    sr.sort_order AS "order", COUNT(e.id) AS entry_count
             FROM small_rhymes sr
-            LEFT JOIN entries e ON e.small_rhyme_id = sr.id
+            LEFT JOIN entries e ON e.small_rhyme_id = sr.id AND e.is_added = 0
             WHERE sr.rhyme_id = ?
             GROUP BY sr.id
             ORDER BY sr.sort_order
@@ -514,7 +743,7 @@ def fanqie_network(connection: sqlite3.Connection, mode: str) -> dict[str, Any]:
                r.name AS rhyme_name, COUNT(e.id) AS entry_count
         FROM small_rhymes sr
         JOIN rhymes r ON r.id = sr.rhyme_id
-        LEFT JOIN entries e ON e.small_rhyme_id = sr.id
+        LEFT JOIN entries e ON e.small_rhyme_id = sr.id AND e.is_added = 0
         GROUP BY sr.id
         ORDER BY sr.id
         """

@@ -15,6 +15,10 @@ const networkTouchInspector = document.querySelector("#network-touch-inspector")
 const networkTouchCharacter = document.querySelector("#network-touch-character");
 const networkTouchDetails = document.querySelector("#network-touch-details");
 const networkTouchFocus = document.querySelector("#network-touch-focus");
+const hierarchySearchForm = document.querySelector("#hierarchy-search-form");
+const hierarchySearchInput = document.querySelector("#hierarchy-search-input");
+const hierarchySearchStatus = document.querySelector("#hierarchy-search-status");
+const hierarchySearchResults = document.querySelector("#hierarchy-search-results");
 const overviewToc = document.querySelector("#overview-toc");
 const overviewTocLinks = [...document.querySelectorAll("[data-overview-toc]")];
 const overviewSections = [...document.querySelectorAll("[data-overview-section]")];
@@ -51,7 +55,9 @@ const state = {
   networkPointerType: "mouse",
   networkTouchNode: null,
   networkSearchQuery: null,
+  hierarchySearchRequest: 0,
 };
+let hierarchySearchTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -152,9 +158,13 @@ function rhymesForVolume(volumeId) {
 }
 
 function renderVolumeRibbons() {
+  const maximumEntries = Math.max(
+    ...state.overview.volumes.map((volume) => volume.entry_count),
+  );
   document.querySelector("#volume-ribbons").innerHTML = state.overview.volumes
     .map((volume) => {
       const rhymes = rhymesForVolume(volume.id);
+      const width = (volume.entry_count / maximumEntries) * 100;
       const segments = rhymes
         .map(
           (rhyme) => `
@@ -172,7 +182,7 @@ function renderVolumeRibbons() {
       return `
         <div class="volume-ribbon">
           <div class="volume-title">${formatVolume(volume.order)} · ${escapeHtml(volume.tone)}聲</div>
-          <div class="ribbon-track">${segments}</div>
+          <div class="ribbon-track" style="width: ${width.toFixed(2)}%">${segments}</div>
           <div class="volume-summary">${volume.rhyme_count} 韻 · ${formatNumber(volume.entry_count)} 字條</div>
         </div>
       `;
@@ -361,8 +371,8 @@ function renderRhymeChoices() {
     .join("");
 }
 
-function scrollSelectedRhymeChoice(behavior) {
-  const list = document.querySelector("#rhyme-list");
+function scrollSelectedHierarchyChoice(listSelector, behavior) {
+  const list = document.querySelector(listSelector);
   const selected = list.querySelector(".choice-button.is-active");
   if (!selected) {
     return;
@@ -455,7 +465,7 @@ async function selectRhyme(rhymeId, scrollToHierarchy = false) {
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
       : "smooth";
-    scrollSelectedRhymeChoice(behavior);
+    scrollSelectedHierarchyChoice("#rhyme-list", behavior);
     document.querySelector("#hierarchy-title").scrollIntoView({ behavior });
   }
 }
@@ -538,6 +548,107 @@ function selectHierarchyCharacter(entryId) {
       ? "auto"
       : "smooth";
     container.scrollIntoView({ behavior, block: "start" });
+  }
+}
+
+function renderHierarchySearchResults(payload) {
+  const groups = [
+    ["volumes", "卷"],
+    ["rhymes", "韻"],
+    ["small_rhymes", "小韻"],
+    ["entries", "字條"],
+  ];
+  hierarchySearchResults.innerHTML = groups
+    .filter(([key]) => payload.results[key].length)
+    .map(
+      ([key, title]) => `
+        <section class="hierarchy-search-group">
+          <h3>${title}</h3>
+          <div class="hierarchy-search-group-list">
+            ${payload.results[key]
+              .map(
+                (item) => `
+                  <button
+                    type="button"
+                    class="hierarchy-search-result"
+                    data-hierarchy-search-level="${item.level}"
+                    data-search-volume-id="${item.volume_id}"
+                    ${item.rhyme_id ? `data-search-rhyme-id="${item.rhyme_id}"` : ""}
+                    ${
+                      item.small_rhyme_id
+                        ? `data-search-small-rhyme-id="${item.small_rhyme_id}"`
+                        : ""
+                    }
+                    ${item.entry_id ? `data-search-entry-id="${item.entry_id}"` : ""}
+                    data-search-path="${escapeHtml(item.path)}"
+                  >
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <small>${escapeHtml(item.path)}</small>
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+      `,
+    )
+    .join("");
+  hierarchySearchResults.hidden = payload.count === 0;
+  hierarchySearchStatus.textContent = payload.count
+    ? `四層同時檢索，共找到 ${formatNumber(payload.count)} 項。`
+    : `沒有找到「${payload.query}」。`;
+}
+
+async function searchHierarchy() {
+  const query = hierarchySearchInput.value.trim();
+  const request = ++state.hierarchySearchRequest;
+  if (!query) {
+    hierarchySearchResults.hidden = true;
+    hierarchySearchResults.innerHTML = "";
+    hierarchySearchStatus.textContent = "";
+    return;
+  }
+  hierarchySearchStatus.textContent = "正在檢索四個層級…";
+  try {
+    const payload = await fetchJson(
+      `/api/v1/overview/hierarchy-search?q=${encodeURIComponent(query)}`,
+    );
+    if (request !== state.hierarchySearchRequest) {
+      return;
+    }
+    renderHierarchySearchResults(payload);
+  } catch (error) {
+    if (request !== state.hierarchySearchRequest) {
+      return;
+    }
+    hierarchySearchResults.hidden = true;
+    hierarchySearchStatus.textContent = error.message;
+  }
+}
+
+async function selectHierarchySearchResult(button) {
+  const level = button.dataset.hierarchySearchLevel;
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+  hierarchySearchStatus.textContent = "正在定位所選層級…";
+  try {
+    selectVolume(Number(button.dataset.searchVolumeId));
+    if (level !== "volume") {
+      await selectRhyme(Number(button.dataset.searchRhymeId), false);
+      scrollSelectedHierarchyChoice("#rhyme-list", behavior);
+    }
+    if (level === "small_rhyme" || level === "entry") {
+      await selectSmallRhyme(Number(button.dataset.searchSmallRhymeId));
+      scrollSelectedHierarchyChoice("#small-rhyme-list", behavior);
+    }
+    if (level === "entry") {
+      selectHierarchyCharacter(Number(button.dataset.searchEntryId));
+    }
+    hierarchySearchResults.hidden = true;
+    hierarchySearchStatus.textContent = `已定位：${button.dataset.searchPath}`;
+  } catch (error) {
+    hierarchySearchStatus.textContent = error.message;
   }
 }
 
@@ -1227,6 +1338,11 @@ function startNetworkPinch() {
 
 function bindPageSelectionEvents() {
   document.addEventListener("click", async (event) => {
+    const hierarchySearchResult = event.target.closest("[data-hierarchy-search-level]");
+    if (hierarchySearchResult) {
+      await selectHierarchySearchResult(hierarchySearchResult);
+      return;
+    }
     const volumeButton = event.target.closest("[data-volume-id]");
     if (volumeButton) {
       selectVolume(Number(volumeButton.dataset.volumeId));
@@ -1261,6 +1377,18 @@ function bindPageSelectionEvents() {
       state.networkFocusDepth = Number(depthButton.dataset.networkDepth);
       rebuildNetworkView();
     }
+  });
+}
+
+function bindHierarchySearchEvents() {
+  hierarchySearchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    window.clearTimeout(hierarchySearchTimer);
+    await searchHierarchy();
+  });
+  hierarchySearchInput.addEventListener("input", () => {
+    window.clearTimeout(hierarchySearchTimer);
+    hierarchySearchTimer = window.setTimeout(searchHierarchy, 180);
   });
 }
 
@@ -1566,6 +1694,7 @@ function bindNetworkCanvasEvents() {
 
 function bindEvents() {
   bindPageSelectionEvents();
+  bindHierarchySearchEvents();
   bindNetworkControlEvents();
   bindNetworkCanvasEvents();
   window.addEventListener("scroll", scheduleOverviewTocUpdate, { passive: true });

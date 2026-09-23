@@ -184,7 +184,20 @@ function renderEntry(entry, scansExpanded) {
   const original = entry.original_character
     ? `<p class="secondary">原字形：${escapeHtml(entry.original_character)}</p>`
     : "";
-  const added = entry.is_added ? '<span class="tag">補錄</span>' : "";
+  if (entry.is_added) {
+    return `
+      <article class="result-card is-supplemental">
+        <div class="result-character">${escapeHtml(entry.character)}</div>
+        <div>
+          <div class="result-meta">
+            <span class="tag">補錄字條</span>
+          </div>
+          <p class="definition">${escapeHtml(entry.definition || "原檔未附注文")}</p>
+          ${original}
+        </div>
+      </article>
+    `;
+  }
   return `
     <article class="result-card">
       <div class="result-character">${escapeHtml(entry.character)}</div>
@@ -194,7 +207,6 @@ function renderEntry(entry, scansExpanded) {
           <span class="tag">${escapeHtml(entry.volume.tone)}聲</span>
           <span class="tag">${escapeHtml(entry.rhyme.name)}韻</span>
           <span class="tag">${escapeHtml(entry.small_rhyme.head_character)}小韻</span>
-          ${added}
         </div>
         <p class="fanqie">${escapeHtml(entry.small_rhyme.fanqie)}</p>
         <p class="definition">${escapeHtml(entry.definition || "原書無注文")}</p>
@@ -269,10 +281,10 @@ async function searchCharacter(character) {
       status.textContent = `《廣韻》中未找到「${character}」。`;
       return;
     }
-    const hasMultipleEntries = payload.entries.length > 1;
+    const regularEntryCount = payload.entries.filter((entry) => !entry.is_added).length;
     status.textContent = `找到 ${payload.count} 條記錄。`;
     results.innerHTML = payload.entries
-      .map((entry) => renderEntry(entry, !hasMultipleEntries))
+      .map((entry) => renderEntry(entry, regularEntryCount === 1))
       .join("");
     results.querySelectorAll("[data-scan-details][open] [data-scan-viewer]").forEach((viewer) => {
       updateScanViewer(viewer, Number(viewer.dataset.page));

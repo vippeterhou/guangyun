@@ -16,6 +16,7 @@ from guangyun.repository import (
     overview_summary,
     rhyme_overview,
     search_fanqie,
+    search_hierarchy,
     small_rhyme_by_id,
     source_metadata,
     variant_source_metadata,
@@ -157,6 +158,19 @@ def rhyme_detail(rhyme_id: Annotated[int, Path(ge=1)]) -> dict:
 def overview() -> dict:
     with get_connection() as connection:
         return overview_summary(connection)
+
+
+@router.get("/overview/hierarchy-search", tags=["browse"])
+def overview_hierarchy_search(
+    q: Annotated[str, Query(min_length=1, max_length=32)],
+) -> dict:
+    with get_connection() as connection:
+        results = search_hierarchy(connection, q)
+    return {
+        "query": q,
+        "count": sum(len(items) for items in results.values()),
+        "results": results,
+    }
 
 
 @router.get("/overview/fanqie", tags=["browse"])

@@ -71,7 +71,7 @@ html[data-theme="dark"] {
   --cp-network-lower: #60a5fa;
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=45">
+    <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=48">
   </head>
   <body>
     <main class="overview-shell">
@@ -99,8 +99,8 @@ html[data-theme="dark"] {
             <ol>
               <li><a href="#overview-metrics" data-overview-toc><span>01</span>廣韻總覽</a></li>
               <li><a href="#overview-volumes" data-overview-toc><span>02</span>五卷長卷</a></li>
-              <li><a href="#overview-rhymes" data-overview-toc><span>03</span>二百零六韻</a></li>
-              <li><a href="#overview-hierarchy" data-overview-toc><span>04</span>卷韻結構</a></li>
+              <li><a href="#overview-hierarchy" data-overview-toc><span>03</span>卷韻結構</a></li>
+              <li><a href="#overview-rhymes" data-overview-toc><span>04</span>二百零六韻</a></li>
               <li><a href="#overview-network" data-overview-toc><span>05</span>反切網絡</a></li>
               <li><a href="#overview-profile" data-overview-toc><span>06</span>全書側寫</a></li>
             </ol>
@@ -133,37 +133,10 @@ html[data-theme="dark"] {
             <p class="section-number">02</p>
             <div>
               <h2 id="volumes-title">五卷長卷</h2>
-              <p>每一小段是一個韻目，寬度表示收錄字條數量。點擊可進入該韻。</p>
+              <p>整卷長度表示正文收字總量；每一小段是一個韻目，寬度表示該韻字數。</p>
             </div>
           </div>
           <div id="volume-ribbons" class="volume-ribbons"></div>
-        </section>
-
-        <section
-          id="overview-rhymes"
-          class="overview-section"
-          aria-labelledby="rhyme-map-title"
-          data-overview-section
-        >
-          <div class="section-heading rhyme-map-heading">
-            <div class="section-heading-copy">
-              <p class="section-number">03</p>
-              <div>
-                <h2 id="rhyme-map-title">二百零六韻</h2>
-                <p>使用同一組韻目方框，在原書次序與平上去入相承關係之間切換。</p>
-              </div>
-            </div>
-            <div class="mode-switch" role="group" aria-label="韻目排列模式">
-              <button type="button" data-rhyme-layout="source" class="is-active">原書次序</button>
-              <button type="button" data-rhyme-layout="tones">四聲相承</button>
-            </div>
-          </div>
-          <div class="rhyme-map-scroll">
-            <div id="rhyme-map" class="rhyme-map"></div>
-          </div>
-          <p id="rhyme-layout-note" class="rhyme-layout-note">
-            方框中的刻度表示該韻收字密度；點擊可進入該韻。
-          </p>
         </section>
 
         <section
@@ -173,12 +146,35 @@ html[data-theme="dark"] {
           data-overview-section
         >
           <div class="section-heading">
-            <p class="section-number">04</p>
+            <p class="section-number">03</p>
             <div>
               <h2 id="hierarchy-title">卷韻結構</h2>
-              <p>依次選擇卷、韻與小韻，在原位查看同音字，不離開總覽。</p>
+              <p>依次選擇卷、韻與小韻，或搜尋任一層級，在原位查看同音字。</p>
             </div>
           </div>
+          <form id="hierarchy-search-form" class="hierarchy-search" role="search">
+            <label for="hierarchy-search-input">搜尋卷、韻、小韻或單字</label>
+            <div class="hierarchy-search-row">
+              <input
+                id="hierarchy-search-input"
+                type="search"
+                autocomplete="off"
+                placeholder="如：卷三、支、德红、國"
+                aria-describedby="hierarchy-search-status"
+              >
+              <button type="submit">搜尋</button>
+            </div>
+            <p
+              id="hierarchy-search-status"
+              class="hierarchy-search-status"
+              aria-live="polite"
+            ></p>
+            <div
+              id="hierarchy-search-results"
+              class="hierarchy-search-results"
+              hidden
+            ></div>
+          </form>
           <div class="hierarchy-layout">
             <div class="hierarchy-browser">
               <div class="hierarchy-column">
@@ -198,6 +194,33 @@ html[data-theme="dark"] {
               <p class="placeholder">選擇一個韻查看詳情。</p>
             </aside>
           </div>
+        </section>
+
+        <section
+          id="overview-rhymes"
+          class="overview-section"
+          aria-labelledby="rhyme-map-title"
+          data-overview-section
+        >
+          <div class="section-heading rhyme-map-heading">
+            <div class="section-heading-copy">
+              <p class="section-number">04</p>
+              <div>
+                <h2 id="rhyme-map-title">二百零六韻</h2>
+                <p>使用同一組韻目方框，在原書次序與平上去入相承關係之間切換。</p>
+              </div>
+            </div>
+            <div class="mode-switch" role="group" aria-label="韻目排列模式">
+              <button type="button" data-rhyme-layout="source" class="is-active">原書次序</button>
+              <button type="button" data-rhyme-layout="tones">四聲相承</button>
+            </div>
+          </div>
+          <div class="rhyme-map-scroll">
+            <div id="rhyme-map" class="rhyme-map"></div>
+          </div>
+          <p id="rhyme-layout-note" class="rhyme-layout-note">
+            方框中的刻度表示該韻收字密度；點擊可進入該韻。
+          </p>
         </section>
 
         <section
@@ -315,6 +338,6 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/overview.js') }}?v=54" defer></script>
+    <script src="{{ url_for('static', path='/overview.js') }}?v=58" defer></script>
   </body>
 </html>

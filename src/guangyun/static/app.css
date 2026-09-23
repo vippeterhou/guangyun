@@ -237,6 +237,11 @@ footer {
   background: var(--cp-surface);
 }
 
+.result-card.is-supplemental {
+  background: var(--cp-bg-elevated);
+  box-shadow: inset 3px 0 0 var(--cp-accent);
+}
+
 .result-character {
   display: grid;
   width: 104px;
