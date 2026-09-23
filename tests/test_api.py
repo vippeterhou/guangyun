@@ -138,8 +138,8 @@ def test_home_page(client) -> None:
     assert "簡繁：Unicode Unihan" in response.text
     assert "本站不保存或重新發布相關圖片" not in response.text
     assert 'href="/docs"' not in response.text
-    assert "app.css?v=25" in response.text
-    assert "app.js?v=17" in response.text
+    assert "app.css?v=27" in response.text
+    assert "app.js?v=19" in response.text
 
 
 def test_overview_page(client) -> None:

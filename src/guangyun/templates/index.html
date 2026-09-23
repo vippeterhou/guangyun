@@ -67,7 +67,7 @@ html[data-theme="dark"] {
   --cp-highlight: rgba(253, 142, 161, 0.12);
 }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=25">
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=27">
   </head>
   <body>
     <main class="page-shell">
@@ -77,7 +77,7 @@ html[data-theme="dark"] {
       <header class="hero">
         <p class="eyebrow">校正宋本</p>
         <h1>廣韻</h1>
-        <p class="intro">輸入一個漢字，查詢其所在卷、韻、小韻、反切與原書釋義。</p>
+        <p class="intro">輸入一個漢字，查詢其所在卷、聲調、韻、小韻、反切與原書釋義。</p>
       </header>
 
       <section class="search-panel" aria-labelledby="search-title">
@@ -119,6 +119,6 @@ html[data-theme="dark"] {
         </p>
       </footer>
     </main>
-    <script src="{{ url_for('static', path='/app.js') }}?v=17" defer></script>
+    <script src="{{ url_for('static', path='/app.js') }}?v=19" defer></script>
   </body>
 </html>

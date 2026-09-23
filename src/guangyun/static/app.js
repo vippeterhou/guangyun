@@ -3,6 +3,7 @@ const input = document.querySelector("#character-input");
 const status = document.querySelector("#status");
 const results = document.querySelector("#results");
 const submitButton = form.querySelector("button");
+const singleCharacterError = "每次只能查詢一個漢字。";
 const wasedaImageBase =
   "https://archive.wul.waseda.ac.jp/kosho/ho04/ho04_01757";
 const wasedaVolumePageCounts = {
@@ -31,6 +32,40 @@ function escapeHtml(value) {
 
 function formatVolume(order) {
   return `卷${chineseVolumeNumbers[order] ?? order}`;
+}
+
+function isVariationSelector(character) {
+  const codepoint = character.codePointAt(0);
+  return (
+    (codepoint >= 0xfe00 && codepoint <= 0xfe0f) ||
+    (codepoint >= 0xe0100 && codepoint <= 0xe01ef)
+  );
+}
+
+function validCharacterQuery(value) {
+  const characters = [...value];
+  return (
+    characters.length === 1 ||
+    (characters.length === 2 && isVariationSelector(characters[1]))
+  );
+}
+
+function responseErrorMessage(response, payload) {
+  if (response.status === 422) {
+    return singleCharacterError;
+  }
+  if (typeof payload.detail === "string") {
+    return payload.detail;
+  }
+  if (Array.isArray(payload.detail)) {
+    const messages = payload.detail
+      .map((item) => item?.msg)
+      .filter((message) => typeof message === "string");
+    if (messages.length) {
+      return messages.join("；");
+    }
+  }
+  return "查詢失敗";
 }
 
 function wasedaImageUrl(volume, page) {
@@ -103,6 +138,10 @@ function renderSourceScan(entry, expanded) {
         data-page-count="${location.pageCount}"
       >
         <figure class="source-scan-frame">
+          <div class="source-scan-loading" role="status">
+            <span class="source-scan-loading-mark" aria-hidden="true"></span>
+            <span data-scan-loading-label>正在載入${positionLabel}</span>
+          </div>
           <a
             class="source-scan-image-link"
             data-scan-image-link
@@ -175,11 +214,16 @@ function updateScanViewer(viewer, requestedPage) {
   const imageUrl = wasedaImageUrl(volume, page);
   const image = viewer.querySelector("[data-scan-image]");
   const imageLink = viewer.querySelector("[data-scan-image-link]");
+  const loadingLabel = viewer.querySelector("[data-scan-loading-label]");
   const error = viewer.querySelector("[data-scan-error]");
   const errorLink = viewer.querySelector("[data-scan-error-link]");
 
   viewer.dataset.page = String(page);
+  viewer.classList.add("is-loading");
+  viewer.setAttribute("aria-busy", "true");
+  loadingLabel.textContent = `正在載入${positionLabel}`;
   image.hidden = false;
+  image.dataset.expectedSrc = imageUrl;
   image.src = imageUrl;
   image.alt = `《廣韻》${positionLabel}書影`;
   imageLink.href = imageUrl;
@@ -198,6 +242,15 @@ function updateScanViewer(viewer, requestedPage) {
   viewer.querySelector('[data-scan-action="last"]').disabled = page === pageCount;
 }
 
+function finishScanImageLoad(image) {
+  if (image.currentSrc !== image.dataset.expectedSrc) {
+    return;
+  }
+  const viewer = image.closest("[data-scan-viewer]");
+  viewer.classList.remove("is-loading");
+  viewer.removeAttribute("aria-busy");
+}
+
 async function searchCharacter(character) {
   submitButton.disabled = true;
   status.className = "status";
@@ -210,7 +263,7 @@ async function searchCharacter(character) {
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || "查詢失敗");
+      throw new Error(responseErrorMessage(response, payload));
     }
     if (payload.count === 0) {
       status.textContent = `《廣韻》中未找到「${character}」。`;
@@ -269,6 +322,17 @@ results.addEventListener(
 );
 
 results.addEventListener(
+  "load",
+  (event) => {
+    const image = event.target.closest("[data-scan-image]");
+    if (image) {
+      finishScanImageLoad(image);
+    }
+  },
+  true,
+);
+
+results.addEventListener(
   "error",
   (event) => {
     const image = event.target.closest("[data-scan-image]");
@@ -276,6 +340,8 @@ results.addEventListener(
       return;
     }
     const viewer = image.closest("[data-scan-viewer]");
+    viewer.classList.remove("is-loading");
+    viewer.removeAttribute("aria-busy");
     image.hidden = true;
     viewer.querySelector("[data-scan-error]").hidden = false;
   },
@@ -285,9 +351,14 @@ results.addEventListener(
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   const character = input.value.trim();
-  if (character) {
-    searchCharacter(character);
+  if (!validCharacterQuery(character)) {
+    status.className = "status error";
+    status.textContent = singleCharacterError;
+    results.replaceChildren();
+    input.focus();
+    return;
   }
+  searchCharacter(character);
 });
 
 const initialCharacter = new URLSearchParams(window.location.search).get("char");

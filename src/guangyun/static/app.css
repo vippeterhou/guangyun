@@ -347,20 +347,103 @@ footer {
   overflow: hidden;
 }
 
+.source-scan-loading,
+.source-scan-image-link,
+.source-scan-error {
+  grid-area: 1 / 1;
+}
+
+.source-scan-loading {
+  z-index: 1;
+  display: grid;
+  min-height: 180px;
+  place-content: center;
+  gap: 14px;
+  padding: 32px;
+  background:
+    radial-gradient(circle at center, var(--cp-accent-soft), transparent 48%),
+    var(--cp-bg-elevated);
+  color: var(--cp-text-muted);
+  font-family: Consolas, "Courier New", Courier, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    visibility 180ms ease;
+}
+
+.source-scan-content.is-loading .source-scan-loading {
+  visibility: visible;
+  opacity: 1;
+}
+
+.source-scan-loading-mark {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.source-scan-loading-mark::before {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: var(--cp-accent);
+  box-shadow: 0 0 10px var(--cp-accent);
+  content: "";
+  animation: source-scan-sweep 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.source-scan-loading-mark::after {
+  position: absolute;
+  inset: 18px;
+  border: 1px solid var(--cp-accent);
+  border-radius: 3px;
+  content: "";
+}
+
 .source-scan-image-link {
   display: grid;
   min-height: 180px;
   place-items: center;
   padding: 16px;
+  transition: opacity 220ms ease;
+}
+
+.source-scan-content.is-loading .source-scan-image-link {
+  visibility: hidden;
+  opacity: 0;
 }
 
 .source-scan-image {
   display: block;
   width: min(100%, 760px);
   height: auto;
+  aspect-ratio: 3 / 2;
   border: 1px solid var(--cp-border);
   background: var(--cp-surface-soft);
   box-shadow: 0 0 2px var(--cp-border);
+}
+
+@keyframes source-scan-sweep {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: translateY(39px);
+    opacity: 1;
+  }
 }
 
 .source-scan-error {
@@ -408,6 +491,13 @@ footer {
   font-family: Consolas, "Courier New", Courier, monospace;
   font-size: 0.8rem;
   text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source-scan-loading-mark::before {
+    animation: none;
+    transform: translateY(19px);
+  }
 }
 
 footer {
