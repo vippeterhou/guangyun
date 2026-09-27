@@ -115,7 +115,7 @@ a {
 }
 
 .hero {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .eyebrow {
@@ -135,9 +135,14 @@ h1 {
   line-height: 1;
 }
 
+h1::selection {
+  background: transparent;
+  color: var(--cp-accent);
+}
+
 .intro {
   max-width: 620px;
-  margin: 20px 0 0;
+  margin: 36px 0 0;
   color: var(--cp-text-muted);
   font-size: 1.1rem;
   line-height: 1.7;

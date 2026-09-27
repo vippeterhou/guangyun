@@ -210,7 +210,7 @@ def test_home_page(client) -> None:
     assert "簡繁：Unicode Unihan" in response.text
     assert "本站不保存或重新發布相關圖片" not in response.text
     assert 'href="/docs"' not in response.text
-    assert "app.css?v=28" in response.text
+    assert "app.css?v=30" in response.text
     assert "app.js?v=20" in response.text
 
 
@@ -218,7 +218,7 @@ def test_overview_page(client) -> None:
     response = client.get("/overview")
     assert response.status_code == 200
     assert "探索廣韻" in response.text
-    assert "overview.css?v=48" in response.text
+    assert "overview.css?v=49" in response.text
     assert "overview.js?v=58" in response.text
     assert 'id="overview-toc"' in response.text
     assert 'id="hierarchy-search-form"' in response.text
