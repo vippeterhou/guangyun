@@ -1,16 +1,6 @@
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <script>
-      (() => {
-        const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-        const theme =
-          param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        document.documentElement.setAttribute("data-theme", theme);
-      })();
-    </script>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+{% extends "base.html" %}
+
+{% block head %}
     <meta name="description" content="按漢字查詢《校正宋本廣韻》的卷、韻、小韻、反切與釋義。">
     <title>廣韻查詢</title>
     <style>
@@ -68,8 +58,9 @@ html[data-theme="dark"] {
 }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=30">
-  </head>
-  <body>
+{% endblock %}
+
+{% block body %}
     <main class="page-shell">
       <nav class="utility-nav" aria-label="主要導覽">
         <a href="/overview">探索廣韻</a>
@@ -119,6 +110,8 @@ html[data-theme="dark"] {
         </p>
       </footer>
     </main>
+{% endblock %}
+
+{% block scripts %}
     <script src="{{ url_for('static', path='/app.js') }}?v=20" defer></script>
-  </body>
-</html>
+{% endblock %}

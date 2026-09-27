@@ -1,16 +1,6 @@
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <script>
-      (() => {
-        const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-        const theme =
-          param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        document.documentElement.setAttribute("data-theme", theme);
-      })();
-    </script>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+{% extends "base.html" %}
+
+{% block head %}
     <meta name="description" content="從卷、韻、小韻、反切與字條統計探索《校正宋本廣韻》。">
     <title>探索廣韻</title>
     <style>
@@ -72,8 +62,9 @@ html[data-theme="dark"] {
 }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', path='/overview.css') }}?v=49">
-  </head>
-  <body>
+{% endblock %}
+
+{% block body %}
     <main class="overview-shell">
       <nav class="overview-nav" aria-label="主要導覽">
         <a href="/">返回查詢</a>
@@ -338,6 +329,8 @@ html[data-theme="dark"] {
         <p><a href="/">返回漢字查詢</a> · <a href="/docs">REST API 文件</a></p>
       </footer>
     </main>
+{% endblock %}
+
+{% block scripts %}
     <script src="{{ url_for('static', path='/overview.js') }}?v=58" defer></script>
-  </body>
-</html>
+{% endblock %}

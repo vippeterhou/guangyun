@@ -201,6 +201,8 @@ def test_fanqie_network_modes(client) -> None:
 def test_home_page(client) -> None:
     response = client.get("/")
     assert response.status_code == 200
+    assert 'src="https://beacon.houbitan.com/t.js"' in response.text
+    assert 'data-site="d13db82f-2982-444b-a721-ac73f8febadb"' in response.text
     assert "廣韻查詢" in response.text
     assert 'href="/overview"' in response.text
     assert "CJKVI Dictionary Database" in response.text
@@ -217,6 +219,8 @@ def test_home_page(client) -> None:
 def test_overview_page(client) -> None:
     response = client.get("/overview")
     assert response.status_code == 200
+    assert 'src="https://beacon.houbitan.com/t.js"' in response.text
+    assert 'data-site="d13db82f-2982-444b-a721-ac73f8febadb"' in response.text
     assert "探索廣韻" in response.text
     assert "overview.css?v=49" in response.text
     assert "overview.js?v=58" in response.text

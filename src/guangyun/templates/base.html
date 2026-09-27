@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <script>
+      (() => {
+        const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+        const theme =
+          param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% block head %}{% endblock %}
+    <script
+      async
+      src="https://beacon.houbitan.com/t.js"
+      data-site="d13db82f-2982-444b-a721-ac73f8febadb"
+    ></script>
+  </head>
+  <body>
+    {% block body %}{% endblock %}
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
