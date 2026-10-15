@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastapi",
+  "functions": {
+    "src/guangyun/main.py": {
+      "includeFiles": "{data/processed/guangyun.sqlite,data/sources.json,src/guangyun/templates/**,src/guangyun/static/**,LICENSES/**,DATA_LICENSE.md,THIRD_PARTY_NOTICES.md}"
+    }
+  }
+}

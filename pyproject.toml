@@ -27,6 +27,12 @@ guangyun-import = "guangyun.importer:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/guangyun"]
 
+[tool.vercel]
+entrypoint = "src.guangyun.main:app"
+
+[tool.vercel.scripts]
+build = "python scripts/fetch_data.py && python scripts/import_sbgy.py && python scripts/validate_data.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

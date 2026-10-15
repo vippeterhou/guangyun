@@ -72,7 +72,26 @@ docker build -t guangyun .
 docker run --rm -p 8000:8000 guangyun
 ```
 
-## Deploy to Render
+## Deploy to Vercel
+
+Production: <https://guangyun-dict.vercel.app>.
+
+Import this repository into Vercel as a FastAPI project, or deploy from its
+root with `vercel --prod`. The configuration in `pyproject.toml` selects
+`src/guangyun/main.py` as the entrypoint and runs the existing download,
+import, and validation scripts during the build.
+
+`vercel.json` explicitly bundles the generated read-only SQLite database,
+source metadata, templates, static files, and data licenses. Requests never
+download or rebuild data, and no persistent disk or external database is
+required. The website and API retain their existing paths.
+
+After deployment, check `/`, `/overview`, `/api/v1/health`, and
+`/api/v1/characters?char=东` before moving a custom domain or suspending the
+previous service. Vercel Functions can still have cold starts and are subject
+to the account's usage limits.
+
+## Deploy to Render (alternative)
 
 The repository includes `render.yaml`. Create a new Render Blueprint from the
 GitHub repository; Render will:
